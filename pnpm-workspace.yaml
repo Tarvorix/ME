@@ -1,0 +1,6 @@
+packages:
+  - client
+
+onlyBuiltDependencies:
+  - esbuild
+  - "@swc/core"

@@ -1,0 +1,123 @@
+{
+  "units": {
+    "Sentinel": {
+      "animations": {
+        "Death": {
+          "sheet": "Sentinel_Death.png",
+          "json": "Sentinel_Death.json",
+          "frames_per_direction": 7,
+          "size": {
+            "w": 3598,
+            "h": 4112
+          }
+        },
+        "Idle": {
+          "sheet": "Sentinel_Idle.png",
+          "json": "Sentinel_Idle.json",
+          "frames_per_direction": 4,
+          "size": {
+            "w": 2056,
+            "h": 4112
+          }
+        },
+        "Move": {
+          "sheet": "Sentinel_Move.png",
+          "json": "Sentinel_Move.json",
+          "frames_per_direction": 8,
+          "size": {
+            "w": 4112,
+            "h": 4112
+          }
+        },
+        "Shoot": {
+          "sheet": "Sentinel_Shoot.png",
+          "json": "Sentinel_Shoot.json",
+          "frames_per_direction": 6,
+          "size": {
+            "w": 3084,
+            "h": 4112
+          }
+        }
+      }
+    },
+    "Thrall": {
+      "animations": {
+        "Death": {
+          "sheet": "Thrall_Death.png",
+          "json": "Thrall_Death.json",
+          "frames_per_direction": 6,
+          "size": {
+            "w": 3084,
+            "h": 4112
+          }
+        },
+        "Idle": {
+          "sheet": "Thrall_Idle.png",
+          "json": "Thrall_Idle.json",
+          "frames_per_direction": 4,
+          "size": {
+            "w": 2056,
+            "h": 4112
+          }
+        },
+        "Move": {
+          "sheet": "Thrall_Move.png",
+          "json": "Thrall_Move.json",
+          "frames_per_direction": 6,
+          "size": {
+            "w": 3084,
+            "h": 4112
+          }
+        },
+        "Shoot": {
+          "sheet": "Thrall_Shoot.png",
+          "json": "Thrall_Shoot.json",
+          "frames_per_direction": 4,
+          "size": {
+            "w": 2056,
+            "h": 4112
+          }
+        }
+      }
+    }
+  },
+  "buildings": {
+    "command_post": {
+      "sheet": "command_post.png",
+      "json": "command_post.json",
+      "type": "static_8dir",
+      "size": {
+        "w": 2056,
+        "h": 1028
+      }
+    },
+    "forge": {
+      "sheet": "forge.png",
+      "json": "forge.json",
+      "type": "static_8dir",
+      "size": {
+        "w": 2056,
+        "h": 1028
+      }
+    },
+    "hover_tank": {
+      "sheet": "hover_tank.png",
+      "json": "hover_tank.json",
+      "type": "static_8dir",
+      "size": {
+        "w": 2056,
+        "h": 1028
+      }
+    }
+  },
+  "directions": [
+    "S",
+    "SW",
+    "W",
+    "NW",
+    "N",
+    "NE",
+    "E",
+    "SE"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "machine-empire",
+  "private": true,
+  "scripts": {
+    "dev": "cd client && pnpm dev",
+    "build:wasm": "cd client && pnpm wasm:build",
+    "build:wasm:release": "cd client && pnpm wasm:release",
+    "build": "pnpm build:wasm:release && cd client && pnpm build"
+  }
+}

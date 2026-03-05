@@ -1,0 +1,27 @@
+{
+  "name": "machine-empire-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "wasm:build": "cd ../crates/wasm && wasm-pack build --target web --dev --out-dir ../../client/src/pkg",
+    "wasm:release": "cd ../crates/wasm && wasm-pack build --target web --release --out-dir ../../client/src/pkg"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.0.0-beta2",
+    "howler": "^2.2.4",
+    "htm": "^3.1.1",
+    "pixi.js": "^8.0.0",
+    "preact": "^10.28.4"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.11",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0",
+    "vite-plugin-top-level-await": "^1.4.0",
+    "vite-plugin-wasm": "^3.3.0"
+  }
+}
