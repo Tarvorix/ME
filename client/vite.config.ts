@@ -3,7 +3,7 @@ import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
-    base: process.env.GITHUB_PAGES ? '/machine_empire/' : '/',
+    base: process.env.GITHUB_PAGES ? '/ME/' : '/',
     plugins: [wasm(), topLevelAwait()],
     publicDir: '../Assets',
     build: {
