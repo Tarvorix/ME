@@ -1,0 +1,25 @@
+{
+    "name": "Machine Empire",
+    "short_name": "MachineEmpire",
+    "description": "Grand Strategy + Real-Time Tactics game. Command your machine army in an industrial civil war.",
+    "start_url": ".",
+    "display": "fullscreen",
+    "orientation": "landscape",
+    "theme_color": "#1a1a2e",
+    "background_color": "#000000",
+    "categories": ["games", "entertainment"],
+    "icons": [
+        {
+            "src": "assets/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "assets/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
