@@ -12,7 +12,6 @@ import { HealthBars } from '../ui/HealthBars';
 import type { GameBridge } from '../bridge/GameBridge';
 import { SIM_TICK_MS, RENDER_ENTRY_SIZE } from '../config';
 import { EventType } from '../bridge/types';
-import { tileToScreen } from './IsoUtils';
 import { SoundManager } from '../audio/SoundManager';
 
 /**
@@ -107,7 +106,13 @@ export class GameRenderer {
 
         // Camera
         this.camera = new CameraController(this.worldContainer, this.app.canvas);
+        // Center immediately with current dimensions
         this.camera.centerOnMap(this.app.screen.width, this.app.screen.height);
+        // Re-center after one frame to ensure canvas dimensions have settled
+        // (important when reusing an existing Application from campaign mode)
+        requestAnimationFrame(() => {
+            this.camera.centerOnMap(this.app.screen.width, this.app.screen.height);
+        });
         console.log(`Camera offset: ${this.worldContainer.x}, ${this.worldContainer.y}`);
 
         // Input
@@ -173,6 +178,9 @@ export class GameRenderer {
 
             // Sync health bars from render buffer data
             this.syncHealthBars(view, count);
+        } else {
+            // Clear stale health bars when no entities in buffer
+            this.healthBars.sync([]);
         }
 
         // Process events and spawn visual effects
@@ -183,6 +191,9 @@ export class GameRenderer {
 
         // Update fog of war overlay (local player = 0 for now)
         this.fogRenderer.update(this.bridge, 0);
+
+        // Update camera (WASD/arrow key pan, edge scrolling)
+        this.camera.update();
 
         // Update input visuals
         this.input.update();
@@ -196,14 +207,19 @@ export class GameRenderer {
 
         for (let i = 0; i < count; i++) {
             const off = i * RENDER_ENTRY_SIZE;
-            const tileX = view.getFloat32(off + 4, true);
-            const tileY = view.getFloat32(off + 8, true);
+            const entityId = view.getUint32(off, true);
             const healthPct = view.getUint8(off + 16);
+            const flags = view.getUint8(off + 19);
             const scale = view.getFloat32(off + 20, true);
+            const animState = (flags >> 2) & 0x03;
 
-            if (healthPct < 100) {
-                const { sx, sy } = tileToScreen(tileX, tileY);
-                entries.push({ x: sx, y: sy, healthPct, scale });
+            // Skip full health, dead/dying entities, and death animations
+            if (healthPct >= 100 || healthPct === 0 || animState === 3) continue;
+
+            // Use sprite position directly to guarantee bars track sprites exactly
+            const sprite = this.spritePool.getSprite(entityId);
+            if (sprite) {
+                entries.push({ x: sprite.x, y: sprite.y, healthPct, scale });
             }
         }
 

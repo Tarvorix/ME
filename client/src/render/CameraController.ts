@@ -5,16 +5,30 @@ import { tileToScreen } from './IsoUtils';
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.0;
 const ZOOM_SPEED = 0.1;
+const PAN_SPEED = 8; // pixels per frame for WASD/arrow key panning
+const EDGE_SCROLL_MARGIN = 20; // pixels from screen edge to trigger edge scrolling
+const EDGE_SCROLL_SPEED = 6; // pixels per frame for edge scrolling
 
 /**
  * Camera controller for panning and zooming the isometric view.
- * Middle-mouse drag to pan, mouse wheel to zoom, touch gestures supported via external callbacks.
+ * Pan: WASD / arrow keys, edge scrolling, middle-mouse drag, or touch two-finger drag.
+ * Zoom: mouse wheel / trackpad scroll, pinch gesture via external callbacks.
  */
 export class CameraController {
     private dragging = false;
     private lastX = 0;
     private lastY = 0;
     private zoom = 1.0;
+
+    // Keyboard pan state
+    private keysDown = new Set<string>();
+    private keyDownHandler: ((e: KeyboardEvent) => void) | null = null;
+    private keyUpHandler: ((e: KeyboardEvent) => void) | null = null;
+
+    // Edge scroll state
+    private mouseX = 0;
+    private mouseY = 0;
+    private mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
 
     constructor(
         private worldContainer: Container,
@@ -27,6 +41,28 @@ export class CameraController {
         this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
         // Prevent context menu on right-click
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // WASD / arrow key panning
+        this.keyDownHandler = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'a' || key === 's' || key === 'd' ||
+                key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
+                this.keysDown.add(key);
+                e.preventDefault();
+            }
+        };
+        this.keyUpHandler = (e: KeyboardEvent) => {
+            this.keysDown.delete(e.key.toLowerCase());
+        };
+        window.addEventListener('keydown', this.keyDownHandler);
+        window.addEventListener('keyup', this.keyUpHandler);
+
+        // Track mouse position for edge scrolling
+        this.mouseMoveHandler = (e: MouseEvent) => {
+            this.mouseX = e.clientX;
+            this.mouseY = e.clientY;
+        };
+        window.addEventListener('mousemove', this.mouseMoveHandler);
     }
 
     /**
@@ -98,16 +134,53 @@ export class CameraController {
         return this.zoom;
     }
 
+    /**
+     * Call once per frame to apply keyboard pan and edge scrolling.
+     * Must be called from the game loop (e.g. GameRenderer.onFrame or CampaignRenderer.update).
+     */
+    update(): void {
+        let dx = 0;
+        let dy = 0;
+
+        // WASD / arrow key panning
+        if (this.keysDown.has('w') || this.keysDown.has('arrowup')) dy += PAN_SPEED;
+        if (this.keysDown.has('s') || this.keysDown.has('arrowdown')) dy -= PAN_SPEED;
+        if (this.keysDown.has('a') || this.keysDown.has('arrowleft')) dx += PAN_SPEED;
+        if (this.keysDown.has('d') || this.keysDown.has('arrowright')) dx -= PAN_SPEED;
+
+        // Edge scrolling (mouse near screen edge)
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        if (this.mouseX < EDGE_SCROLL_MARGIN) dx += EDGE_SCROLL_SPEED;
+        if (this.mouseX > w - EDGE_SCROLL_MARGIN) dx -= EDGE_SCROLL_SPEED;
+        if (this.mouseY < EDGE_SCROLL_MARGIN) dy += EDGE_SCROLL_SPEED;
+        if (this.mouseY > h - EDGE_SCROLL_MARGIN) dy -= EDGE_SCROLL_SPEED;
+
+        if (dx !== 0 || dy !== 0) {
+            this.worldContainer.x += dx;
+            this.worldContainer.y += dy;
+        }
+    }
+
     destroy(): void {
         this.canvas.removeEventListener('pointerdown', this.onPointerDown);
         this.canvas.removeEventListener('pointermove', this.onPointerMove);
         this.canvas.removeEventListener('pointerup', this.onPointerUp);
         this.canvas.removeEventListener('pointerleave', this.onPointerUp);
         this.canvas.removeEventListener('wheel', this.onWheel);
+        if (this.keyDownHandler) {
+            window.removeEventListener('keydown', this.keyDownHandler);
+        }
+        if (this.keyUpHandler) {
+            window.removeEventListener('keyup', this.keyUpHandler);
+        }
+        if (this.mouseMoveHandler) {
+            window.removeEventListener('mousemove', this.mouseMoveHandler);
+        }
     }
 
     private onPointerDown = (e: PointerEvent): void => {
-        // Middle mouse button (button 1)
+        // Middle mouse button (button 1) for panning
         if (e.button === 1) {
             this.dragging = true;
             this.lastX = e.clientX;

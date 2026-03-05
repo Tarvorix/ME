@@ -145,9 +145,9 @@ impl BattleMap {
         let mut map = BattleMap::new(width, height);
         let mut rng = SmallRng::seed_from_u64(seed);
 
-        // Assign random sprite variants (0-3) to all tiles
+        // Assign random sprite variants (0-4) to all tiles (5 ground textures)
         for tile in map.tiles.iter_mut() {
-            tile.sprite_variant = rng.gen_range(0..4);
+            tile.sprite_variant = rng.gen_range(0..5);
         }
 
         let total_tiles = (width * height) as usize;

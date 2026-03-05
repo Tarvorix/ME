@@ -127,9 +127,11 @@ pub fn ai_strategic_system(world: &mut World) {
     let mut commands: Vec<Command> = Vec::new();
 
     for ai in ai_players.0.iter_mut() {
-        // Check if it's time for a strategic update
+        // Check if it's time for a strategic update.
+        // First tick (last_strategic_tick == 0) always triggers to give AI an immediate strategy.
+        let first_tick = ai.last_strategic_tick == 0;
         ai.last_strategic_tick += 1;
-        if ai.last_strategic_tick % ai.difficulty.strategic_update_interval() != 0 {
+        if !first_tick && ai.last_strategic_tick % ai.difficulty.strategic_update_interval() != 0 {
             continue;
         }
 

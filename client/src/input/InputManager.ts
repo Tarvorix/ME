@@ -154,6 +154,16 @@ export class InputManager {
         if (this.selectedEntities.size === 0) return;
 
         const { wx, wy } = this.camera.screenToWorld(screenX, screenY);
+        const ids = Array.from(this.selectedEntities);
+
+        // Check if right-clicking on an enemy unit — if so, attack instead of move
+        const targetEntityId = this.spritePool.getEntityAtScreen(wx, wy);
+        if (targetEntityId !== null && !this.selectedEntities.has(targetEntityId)) {
+            // Right-clicked an entity that is NOT in our selection — attack it
+            this.bridge.cmdAttackTarget(ids, targetEntityId);
+            return;
+        }
+
         const { tx, ty } = screenToTile(wx, wy);
 
         const mapW = this.bridge.getMapWidth();
@@ -162,8 +172,8 @@ export class InputManager {
         const tileY = Math.floor(ty);
 
         if (tileX >= 0 && tileX < mapW && tileY >= 0 && tileY < mapH) {
-            // Send move command for each selected entity
-            for (const entityId of this.selectedEntities) {
+            // Send move command for all selected entities
+            for (const entityId of ids) {
                 this.bridge.cmdMoveUnit(entityId, tx, ty);
             }
             this.moveIndicator.show(tx, ty);

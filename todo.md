@@ -450,3 +450,57 @@
 ### Verification
 - [x] cargo test --all passes (all tests pass including new test_battle_ai_initialized)
 - [x] pnpm build compiles clean
+
+## Chunk 54: Terrain Art Swap (ME_* Textures)
+
+### Changes
+- [x] TerrainGenerator.ts: Replace old rts_1-4.png with 5 new ground textures (ME_Sand, ME_Sand2, ME_50-50, ME_50-50_2, ME_concrete)
+- [x] TerrainGenerator.ts: Add 2 edge/impassable textures (ME_end, ME_end_concrete) with getEdgeTexture() method
+- [x] TilemapRenderer.ts: Impassable tiles (terrain type 1) now use edge textures instead of ground textures
+- [x] map.rs: Sprite variant range updated from 0-3 to 0-4 (5 ground texture variants)
+
+### Verification
+- [x] All 7 ME_* terrain assets present in Assets/Terrain/
+- [x] cargo test --all passes
+- [x] pnpm build compiles clean
+
+## Chunk 55: RTS Battle View — Three Critical Bug Fixes
+
+### Bug 1: Edge textures appear in middle of map
+- [x] TilemapRenderer.ts: Only use edge textures for Impassable tiles on map border (within 1 tile of edge), interior Impassable tiles use regular ground textures
+
+### Bug 2: RTS battle map doesn't fit screen, can't pan/zoom properly
+- [x] CameraController.ts: Add right-click drag panning (in addition to middle-mouse)
+- [x] CameraController.ts: Add resize listener to re-center map on window resize
+- [x] CameraController.ts: Clean up resize listener in destroy()
+- [x] GameRenderer.ts: Call centerOnMap after a requestAnimationFrame delay to ensure canvas dimensions are settled
+
+### Bug 3: Enemy AI doesn't move in RTS battles
+- [x] campaign/bridge.rs: Give AI units assigned_pos pointing at enemy spawn zone so they march immediately
+- [x] ai/player.rs: First strategic tick always triggers immediately (no 40-tick delay)
+- [x] (behavior_tree.rs already had MoveToAssignedPosition in the BT selector — just needed assigned_pos to be set)
+
+### Verification
+- [x] cargo test --all passes (379 tests)
+- [x] pnpm wasm:build clean
+- [x] pnpm build compiles clean
+
+## Chunk 55b: Additional RTS Battle Bug Fixes
+
+### Bug: Right-click on enemy sends Move instead of Attack
+- [x] InputManager.ts: issueMoveOrder() checks if right-click target is an enemy entity; sends cmdAttackTarget instead of cmdMoveUnit
+
+### Bug: Ghost health bars stay at first engagement location
+- [x] GameRenderer.ts syncHealthBars(): Use sprite positions from SpritePool directly (not independent tileToScreen conversion) to guarantee bars track sprites exactly
+- [x] GameRenderer.ts syncHealthBars(): Skip dead entities (healthPct == 0) and Death animation (animState == 3) to prevent ghost bars on dying units
+- [x] GameRenderer.ts onFrame(): Clear health bars when render count is 0 to prevent stale bars
+
+### Bug: WASD/edge scroll panning for RTS battle view
+- [x] CameraController.ts: Add WASD/arrow key panning (PAN_SPEED=8) and edge scrolling (EDGE_SCROLL_MARGIN=20, EDGE_SCROLL_SPEED=6) via update() method
+- [x] GameRenderer.ts: Call camera.update() each frame for WASD/edge scroll (RTS view only, campaign view unaffected)
+
+### Verification
+- [ ] pnpm build compiles clean
+- [ ] Health bars follow units during combat and disappear on death
+- [ ] Right-click on enemy issues attack command
+- [ ] WASD/arrow keys and edge scrolling work in RTS battle view

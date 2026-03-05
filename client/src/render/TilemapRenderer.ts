@@ -16,7 +16,13 @@ export class TilemapRenderer {
         for (let y = 0; y < mapH; y++) {
             for (let x = 0; x < mapW; x++) {
                 const tile = bridge.getMapTile(x, y);
-                const tex = terrainGen.getTexture(tile.variant);
+
+                // Edge textures only for Impassable tiles on the map border (within 1 tile of edge).
+                // Interior Impassable tiles use regular ground textures (they're still blocked gameplay-wise).
+                const isMapBorder = x === 0 || y === 0 || x === mapW - 1 || y === mapH - 1;
+                const tex = (tile.terrain === 1 && isMapBorder)
+                    ? terrainGen.getEdgeTexture(tile.variant)
+                    : terrainGen.getTexture(tile.variant);
 
                 const sprite = new Sprite(tex);
                 const { sx, sy } = tileToScreen(x, y);

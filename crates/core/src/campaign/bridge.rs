@@ -59,14 +59,18 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
     let attacker_is_ai = request.attacker != 0;
     let defender_is_ai = request.defender != 0 && request.defender != 255;
 
+    // Compute spawn centers for each zone so AI can be given attack targets
+    let zone0_cx = deployment.zones[0].center_x;
+    let zone0_cy = deployment.zones[0].center_y;
+    let zone1_cx = deployment.zones[1].center_x;
+    let zone1_cy = deployment.zones[1].center_y;
+
     // Spawn attacker forces at zone 0
-    let zone0 = &deployment.zones[0];
-    let cp0 = spawn_force(&mut game, request.attacker, &request.attacker_forces, zone0.center_x, zone0.center_y, attacker_is_ai);
+    let cp0 = spawn_force(&mut game, request.attacker, &request.attacker_forces, zone0_cx, zone0_cy, attacker_is_ai);
     deployment.command_posts[0] = Some(cp0);
 
     // Spawn defender forces at zone 1
-    let zone1 = &deployment.zones[1];
-    let cp1 = spawn_force(&mut game, request.defender, &request.defender_forces, zone1.center_x, zone1.center_y, defender_is_ai);
+    let cp1 = spawn_force(&mut game, request.defender, &request.defender_forces, zone1_cx, zone1_cy, defender_is_ai);
     deployment.command_posts[1] = Some(cp1);
 
     deployment.confirmed = vec![true, true]; // Auto-confirm for campaign battles
@@ -84,6 +88,35 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
     }
     if defender_is_ai {
         game.add_ai_player(request.defender, AiDifficulty::Normal);
+    }
+
+    // Give AI units an initial assigned_pos pointing toward the enemy spawn.
+    // This makes AI units march toward the enemy immediately instead of idling.
+    {
+        let ut_storage = game.world.get_storage::<UnitType>();
+        let ai_entities: Vec<(crate::ecs::entity::Entity, u8)> = if let Some(uts) = ut_storage {
+            if let Some(ai_s) = game.world.get_storage::<AiControlled>() {
+                ai_s.iter()
+                    .filter_map(|(e, _)| uts.get(e).map(|ut| (e, ut.owner)))
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        for (entity, owner) in ai_entities {
+            // Attacker (zone 0) → target zone 1 center, Defender (zone 1) → target zone 0 center
+            let (target_x, target_y) = if owner == request.attacker {
+                (zone1_cx, zone1_cy)
+            } else {
+                (zone0_cx, zone0_cy)
+            };
+            if let Some(ai) = game.world.get_component_mut::<AiControlled>(entity) {
+                ai.assigned_pos = Some((target_x, target_y));
+            }
+        }
     }
 
     game
