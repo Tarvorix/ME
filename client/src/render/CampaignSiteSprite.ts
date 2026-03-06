@@ -166,8 +166,8 @@ export class CampaignSiteSprite extends Container {
         this.iconGfx.clear();
 
         switch (siteType) {
-            case SiteType.Forge:
-                this.drawForgeIcon();
+            case SiteType.Node:
+                this.drawNodeIcon();
                 break;
             case SiteType.MiningStation:
                 this.drawMineIcon();
@@ -179,10 +179,10 @@ export class CampaignSiteSprite extends Container {
     }
 
     /**
-     * Forge icon: Gear/cog shape with 8 teeth and inner axle.
+     * Node icon: Gear/cog shape with 8 teeth and inner axle.
      * Largest icon since it's the player's home base.
      */
-    private drawForgeIcon(): void {
+    private drawNodeIcon(): void {
         const g = this.iconGfx;
         const numTeeth = 8;
         const innerR = 20;
@@ -352,11 +352,11 @@ export class CampaignSiteSprite extends Container {
 
     /**
      * Get the base icon radius for this site type.
-     * Forge is largest (home base), others are smaller.
+     * Node is largest (home base), others are smaller.
      */
     private getIconRadius(): number {
         switch (this.siteData.siteType) {
-            case SiteType.Forge: return 36;
+            case SiteType.Node: return 36;
             case SiteType.MiningStation: return 30;
             case SiteType.RelicSite: return 30;
             default: return 28;
@@ -368,7 +368,7 @@ export class CampaignSiteSprite extends Container {
      */
     private getSiteLabel(siteType: SiteType): string {
         switch (siteType) {
-            case SiteType.Forge: return 'FORGE';
+            case SiteType.Node: return 'NODE';
             case SiteType.MiningStation: return 'MINE';
             case SiteType.RelicSite: return 'RELIC';
             default: return 'SITE';

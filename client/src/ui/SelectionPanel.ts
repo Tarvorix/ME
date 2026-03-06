@@ -7,7 +7,7 @@ const UNIT_DISPLAY_NAMES: Record<number, string> = {
     [SpriteType.Sentinel]: 'Sentinel',
     [SpriteType.HoverTank]: 'Hover Tank',
     [SpriteType.CommandPost]: 'Command Post',
-    [SpriteType.Forge]: 'Forge',
+    [SpriteType.Node]: 'Node',
 };
 
 export interface SelectionInfo {

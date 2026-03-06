@@ -6,8 +6,8 @@ use super::map::CampaignMap;
 pub struct CampaignEconomy {
     /// Current energy bank.
     pub energy_bank: f32,
-    /// Base income from forge (5 energy/s).
-    pub forge_income: f32,
+    /// Base income from node (5 energy/s).
+    pub node_income: f32,
     /// Income from owned mining stations (8 energy/s each).
     pub mine_income: f32,
     /// Income from owned relic sites (3 energy/s each).
@@ -26,7 +26,7 @@ impl CampaignEconomy {
     pub fn new() -> Self {
         CampaignEconomy {
             energy_bank: 500.0, // Starting energy
-            forge_income: 5.0,
+            node_income: 5.0,
             mine_income: 0.0,
             relic_income: 0.0,
             garrison_upkeep: 0.0,
@@ -38,7 +38,7 @@ impl CampaignEconomy {
 
     /// Compute total income per second.
     pub fn total_income(&self) -> f32 {
-        let base = self.forge_income + self.mine_income + self.relic_income;
+        let base = self.node_income + self.mine_income + self.relic_income;
         let strain_penalty = compute_strain_penalty(self.strain);
         base * (1.0 - strain_penalty)
     }
@@ -78,21 +78,21 @@ pub fn compute_strain_penalty(strain: f32) -> f32 {
 
 /// Update campaign income based on owned sites.
 pub fn compute_campaign_income(map: &CampaignMap, player_id: u8) -> (f32, f32, f32) {
-    let mut forge_income = 0.0;
+    let mut node_income = 0.0;
     let mut mine_income = 0.0;
     let mut relic_income = 0.0;
 
     for site in &map.sites {
         if site.owner == player_id && !site.is_contested {
             match site.site_type {
-                super::map::SiteType::Forge => forge_income += 5.0,
+                super::map::SiteType::Node => node_income += 5.0,
                 super::map::SiteType::MiningStation => mine_income += 8.0,
                 super::map::SiteType::RelicSite => relic_income += 3.0,
             }
         }
     }
 
-    (forge_income, mine_income, relic_income)
+    (node_income, mine_income, relic_income)
 }
 
 /// Compute garrison upkeep for a player's garrisoned units.
@@ -115,8 +115,8 @@ pub fn compute_garrison_upkeep(map: &CampaignMap, player_id: u8) -> f32 {
 /// Campaign resource tick: update economies based on owned sites.
 pub fn campaign_resource_tick(economies: &mut [CampaignEconomy], map: &CampaignMap, delta_secs: f32) {
     for (player_id, econ) in economies.iter_mut().enumerate() {
-        let (forge_inc, mine_inc, relic_inc) = compute_campaign_income(map, player_id as u8);
-        econ.forge_income = forge_inc;
+        let (node_inc, mine_inc, relic_inc) = compute_campaign_income(map, player_id as u8);
+        econ.node_income = node_inc;
         econ.mine_income = mine_inc;
         econ.relic_income = relic_inc;
 
@@ -136,10 +136,10 @@ mod tests {
     use crate::campaign::map::{CampaignMap, SiteType};
 
     #[test]
-    fn test_forge_base_income() {
+    fn test_node_base_income() {
         let map = CampaignMap::generate(2, 42);
-        let (forge_inc, mine_inc, relic_inc) = compute_campaign_income(&map, 0);
-        assert_eq!(forge_inc, 5.0, "Forge should give 5 energy/s");
+        let (node_inc, mine_inc, relic_inc) = compute_campaign_income(&map, 0);
+        assert_eq!(node_inc, 5.0, "Node should give 5 energy/s");
         assert_eq!(mine_inc, 0.0, "No mines owned initially");
         assert_eq!(relic_inc, 0.0, "No relics owned initially");
     }
@@ -191,8 +191,8 @@ mod tests {
             .unwrap().id;
         map.get_site_mut(relic_id).unwrap().owner = 0;
 
-        let (forge_inc, mine_inc, relic_inc) = compute_campaign_income(&map, 0);
-        assert_eq!(forge_inc, 5.0);
+        let (node_inc, mine_inc, relic_inc) = compute_campaign_income(&map, 0);
+        assert_eq!(node_inc, 5.0);
         assert_eq!(mine_inc, 16.0); // 2 mines * 8
         assert_eq!(relic_inc, 3.0);
     }
@@ -201,7 +201,7 @@ mod tests {
     fn test_garrison_upkeep() {
         let map = CampaignMap::generate(2, 42);
         let upkeep = compute_garrison_upkeep(&map, 0);
-        // Forge garrison: 10 Thralls + 3 Sentinels + 1 HoverTank
+        // Node garrison: 10 Thralls + 3 Sentinels + 1 HoverTank
         // Garrisoned upkeep: Thrall=0.1, Sentinel=0.3, HoverTank=0.8
         let expected = 10.0 * 0.1 + 3.0 * 0.3 + 1.0 * 0.8;
         assert!((upkeep - expected).abs() < 0.01,
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_net_rate_calculation() {
         let mut econ = CampaignEconomy::new();
-        econ.forge_income = 5.0;
+        econ.node_income = 5.0;
         econ.mine_income = 16.0;
         econ.garrison_upkeep = 5.5;
         let net = econ.net_rate();

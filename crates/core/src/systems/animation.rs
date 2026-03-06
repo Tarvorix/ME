@@ -29,7 +29,7 @@ pub fn animation_system(world: &mut World) {
                     1 => SpriteId::Sentinel,
                     2 => SpriteId::HoverTank,
                     3 => SpriteId::CommandPost,
-                    4 => SpriteId::Forge,
+                    4 => SpriteId::Node,
                     _ => SpriteId::Thrall,
                 };
 

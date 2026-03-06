@@ -27,8 +27,8 @@ export function VictoryScreen({ victory, stats, onPlayAgain, onMainMenu }: Victo
     const title = victory ? 'VICTORY' : 'DEFEAT';
     const titleColor = victory ? '#44cc44' : '#cc4444';
     const subtitle = victory
-        ? 'All enemy forges have been destroyed.'
-        : 'Your forge has been destroyed.';
+        ? 'All enemy nodes have been destroyed.'
+        : 'Your node has been destroyed.';
 
     // Format time
     const totalSecs = Math.floor(stats.tickCount * 0.05);

@@ -92,8 +92,8 @@ pub struct MctsState {
     pub sector_units: Vec<Vec<SectorUnitCounts>>,
     /// Per-player economy state.
     pub economies: Vec<MctsEconomy>,
-    /// Per-player forge alive status.
-    pub forge_alive: Vec<bool>,
+    /// Per-player node alive status.
+    pub node_alive: Vec<bool>,
     /// Per-player command post sector index.
     pub cp_sector: Vec<Option<u8>>,
     /// Per-player: infantry production line busy.
@@ -252,7 +252,7 @@ impl MctsPlanner {
             .collect();
 
         let mut economies: Vec<MctsEconomy> = Vec::new();
-        let mut forge_alive: Vec<bool> = vec![false; player_count as usize];
+        let mut node_alive: Vec<bool> = vec![false; player_count as usize];
         let mut cp_sector: Vec<Option<u8>> = vec![None; player_count as usize];
         let mut infantry_line_busy: Vec<bool> = vec![false; player_count as usize];
         let mut armor_line_busy: Vec<bool> = vec![false; player_count as usize];
@@ -298,8 +298,8 @@ impl MctsPlanner {
                     SpriteId::CommandPost => {
                         cp_sector[pid] = Some(sector_idx as u8);
                     }
-                    SpriteId::Forge => {
-                        forge_alive[pid] = true;
+                    SpriteId::Node => {
+                        node_alive[pid] = true;
                     }
                     SpriteId::CapturePoint => {
                         // Capture points are neutral objectives, not counted per player
@@ -359,7 +359,7 @@ impl MctsPlanner {
             map_height,
             sector_units,
             economies,
-            forge_alive,
+            node_alive,
             cp_sector,
             infantry_line_busy,
             armor_line_busy,
@@ -423,7 +423,7 @@ impl MctsPlanner {
                 }
             }
 
-            // Defend sectors with own presence or CP/forge
+            // Defend sectors with own presence or CP/node
             if let Some(cp_sec) = state.cp_sector[pid] {
                 actions.push(StrategicAction::DefendSector(cp_sec));
             }
@@ -437,14 +437,14 @@ impl MctsPlanner {
     pub fn evaluate_state(state: &MctsState, player_id: u8) -> f64 {
         let pid = player_id as usize;
 
-        // Base survival: 20% — forge alive is critical
-        let base_score = if pid < state.forge_alive.len() && state.forge_alive[pid] {
+        // Base survival: 20% — node alive is critical
+        let base_score = if pid < state.node_alive.len() && state.node_alive[pid] {
             1.0
         } else {
             0.0
         };
 
-        // If our forge is dead, overall score is 0
+        // If our node is dead, overall score is 0
         if base_score == 0.0 {
             return 0.0;
         }
@@ -772,15 +772,15 @@ impl MctsPlanner {
         let mut rollout_state = state.clone();
 
         for _ in 0..MCTS_ROLLOUT_DEPTH {
-            // Check if game is over (any forge destroyed)
-            let player_alive = rollout_state.forge_alive[player_id as usize];
+            // Check if game is over (any node destroyed)
+            let player_alive = rollout_state.node_alive[player_id as usize];
             if !player_alive {
                 return 0.0;
             }
 
             let all_enemies_dead = (0..rollout_state.player_count)
                 .filter(|&p| p != player_id)
-                .all(|p| !rollout_state.forge_alive[p as usize]);
+                .all(|p| !rollout_state.node_alive[p as usize]);
             if all_enemies_dead {
                 return 1.0;
             }
@@ -825,9 +825,9 @@ mod tests {
         game.spawn_unit(SpriteId::Sentinel, 10.5, 8.5, 0);
         game.spawn_thrall(55.5, 55.5, 1);
 
-        // Spawn forges and CPs
-        game.spawn_forge(5.0, 5.0, 0);
-        game.spawn_forge(60.0, 60.0, 1);
+        // Spawn nodes and CPs
+        game.spawn_node(5.0, 5.0, 0);
+        game.spawn_node(60.0, 60.0, 1);
         game.spawn_command_post(8.0, 8.0, 0);
         game.spawn_command_post(55.0, 55.0, 1);
 
@@ -844,9 +844,9 @@ mod tests {
         // Player 1 should have 1 thrall
         assert_eq!(state.total_units(1), 1);
 
-        // Both forges should be alive
-        assert!(state.forge_alive[0]);
-        assert!(state.forge_alive[1]);
+        // Both nodes should be alive
+        assert!(state.node_alive[0]);
+        assert!(state.node_alive[1]);
 
         // CP sectors should be set
         assert!(state.cp_sector[0].is_some());
@@ -858,8 +858,8 @@ mod tests {
         let mut game = test_game();
         game.spawn_thrall(8.5, 8.5, 0);
         game.spawn_thrall(55.5, 55.5, 1);
-        game.spawn_forge(5.0, 5.0, 0);
-        game.spawn_forge(60.0, 60.0, 1);
+        game.spawn_node(5.0, 5.0, 0);
+        game.spawn_node(60.0, 60.0, 1);
         game.spawn_command_post(8.0, 8.0, 0);
         game.spawn_command_post(55.0, 55.0, 1);
 
@@ -881,7 +881,7 @@ mod tests {
     fn test_mcts_no_production_when_broke() {
         let mut game = test_game();
         game.spawn_thrall(8.5, 8.5, 0);
-        game.spawn_forge(5.0, 5.0, 0);
+        game.spawn_node(5.0, 5.0, 0);
         game.spawn_command_post(8.0, 8.0, 0);
 
         game.tick(50.0);
@@ -913,7 +913,7 @@ mod tests {
                 MctsEconomy { energy_bank: 500.0, income: 5.0, upkeep: 1.0, strain: 0.0 },
                 MctsEconomy { energy_bank: 100.0, income: 2.0, upkeep: 1.0, strain: 50.0 },
             ],
-            forge_alive: vec![true, true],
+            node_alive: vec![true, true],
             cp_sector: vec![Some(0), Some(63)],
             infantry_line_busy: vec![false, false],
             armor_line_busy: vec![false, false],
@@ -946,7 +946,7 @@ mod tests {
                 MctsEconomy { energy_bank: 500.0, income: 5.0, upkeep: 1.0, strain: 0.0 },
                 MctsEconomy { energy_bank: 500.0, income: 5.0, upkeep: 1.0, strain: 0.0 },
             ],
-            forge_alive: vec![false, true], // Player 0's forge is dead
+            node_alive: vec![false, true], // Player 0's node is dead
             cp_sector: vec![Some(0), Some(63)],
             infantry_line_busy: vec![false, false],
             armor_line_busy: vec![false, false],
@@ -962,8 +962,8 @@ mod tests {
         game.spawn_thrall(8.5, 8.5, 0);
         game.spawn_thrall(9.5, 8.5, 0);
         game.spawn_thrall(55.5, 55.5, 1);
-        game.spawn_forge(5.0, 5.0, 0);
-        game.spawn_forge(60.0, 60.0, 1);
+        game.spawn_node(5.0, 5.0, 0);
+        game.spawn_node(60.0, 60.0, 1);
         game.spawn_command_post(8.0, 8.0, 0);
         game.spawn_command_post(55.0, 55.0, 1);
 
@@ -995,7 +995,7 @@ mod tests {
                 MctsEconomy { energy_bank: 500.0, income: 10.0, upkeep: 0.0, strain: 0.0 },
                 MctsEconomy { energy_bank: 500.0, income: 10.0, upkeep: 0.0, strain: 0.0 },
             ],
-            forge_alive: vec![true, true],
+            node_alive: vec![true, true],
             cp_sector: vec![Some(0), Some(63)],
             infantry_line_busy: vec![false, false],
             armor_line_busy: vec![false, false],
@@ -1049,7 +1049,7 @@ mod tests {
             map_height: 64,
             sector_units: vec![],
             economies: vec![],
-            forge_alive: vec![],
+            node_alive: vec![],
             cp_sector: vec![],
             infantry_line_busy: vec![],
             armor_line_busy: vec![],
@@ -1071,7 +1071,7 @@ mod tests {
             map_height: 64,
             sector_units: vec![],
             economies: vec![],
-            forge_alive: vec![],
+            node_alive: vec![],
             cp_sector: vec![],
             infantry_line_busy: vec![],
             armor_line_busy: vec![],
@@ -1099,7 +1099,7 @@ mod tests {
                 (0..TOTAL_SECTORS).map(|_| SectorUnitCounts::default()).collect(),
             ],
             economies: vec![],
-            forge_alive: vec![true, true],
+            node_alive: vec![true, true],
             cp_sector: vec![Some(0), Some(63)],
             infantry_line_busy: vec![false, false],
             armor_line_busy: vec![false, false],

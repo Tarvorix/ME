@@ -156,21 +156,21 @@ mod tests {
         let mut map = CampaignMap::generate(2, 42);
         let mut queue = DispatchQueue::new();
 
-        let forge_id = map.player_forges[0];
-        let count_before = map.get_site(forge_id).unwrap().garrison_count();
+        let node_id = map.player_nodes[0];
+        let count_before = map.get_site(node_id).unwrap().garrison_count();
 
-        // Dispatch 5 thralls from forge to a mine
+        // Dispatch 5 thralls from node to a mine
         let mine_id = map.sites.iter()
             .find(|s| s.site_type == SiteType::MiningStation)
             .unwrap().id;
 
         let result = queue.dispatch_force(
-            &mut map, 0, forge_id, mine_id,
+            &mut map, 0, node_id, mine_id,
             vec![GarrisonedUnit::new(0, 5)],
         );
         assert!(result.is_some());
 
-        let count_after = map.get_site(forge_id).unwrap().garrison_count();
+        let count_after = map.get_site(node_id).unwrap().garrison_count();
         assert_eq!(count_after, count_before - 5, "Source should lose dispatched units");
     }
 
@@ -179,15 +179,15 @@ mod tests {
         let mut map = CampaignMap::generate(2, 42);
         let mut queue = DispatchQueue::new();
 
-        let forge_id = map.player_forges[0];
+        let node_id = map.player_nodes[0];
         let mine_id = map.sites.iter()
             .find(|s| s.site_type == SiteType::MiningStation)
             .unwrap().id;
 
-        let expected_time = map.travel_time(forge_id, mine_id);
+        let expected_time = map.travel_time(node_id, mine_id);
 
         queue.dispatch_force(
-            &mut map, 0, forge_id, mine_id,
+            &mut map, 0, node_id, mine_id,
             vec![GarrisonedUnit::new(0, 2)],
         );
 
@@ -199,13 +199,13 @@ mod tests {
         let mut map = CampaignMap::generate(2, 42);
         let mut queue = DispatchQueue::new();
 
-        let forge_id = map.player_forges[0];
+        let node_id = map.player_nodes[0];
         let mine_id = map.sites.iter()
             .find(|s| s.site_type == SiteType::MiningStation)
             .unwrap().id;
 
         queue.dispatch_force(
-            &mut map, 0, forge_id, mine_id,
+            &mut map, 0, node_id, mine_id,
             vec![GarrisonedUnit::new(0, 3)],
         );
 
@@ -234,9 +234,9 @@ mod tests {
         map.get_site_mut(mine_id).unwrap().owner = 0;
 
         // Player 1 dispatches force to that mine
-        let forge1_id = map.player_forges[1];
+        let node1_id = map.player_nodes[1];
         queue.dispatch_force(
-            &mut map, 1, forge1_id, mine_id,
+            &mut map, 1, node1_id, mine_id,
             vec![GarrisonedUnit::new(0, 5)],
         );
 
@@ -250,14 +250,14 @@ mod tests {
         let mut map = CampaignMap::generate(2, 42);
         let mut queue = DispatchQueue::new();
 
-        let forge_id = map.player_forges[0];
+        let node_id = map.player_nodes[0];
         let mine_id = map.sites.iter()
             .find(|s| s.site_type == SiteType::MiningStation)
             .unwrap().id;
 
         // Try to dispatch 100 thralls (only have 10)
         let result = queue.dispatch_force(
-            &mut map, 0, forge_id, mine_id,
+            &mut map, 0, node_id, mine_id,
             vec![GarrisonedUnit::new(0, 100)],
         );
         assert!(result.is_none(), "Should fail with insufficient units");
@@ -276,9 +276,9 @@ mod tests {
         map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 2));
 
         // Dispatch more units to own site
-        let forge_id = map.player_forges[0];
+        let node_id = map.player_nodes[0];
         queue.dispatch_force(
-            &mut map, 0, forge_id, mine_id,
+            &mut map, 0, node_id, mine_id,
             vec![GarrisonedUnit::new(0, 3)],
         );
 

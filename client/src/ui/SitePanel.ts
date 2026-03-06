@@ -10,7 +10,7 @@ import { PLAYER_COLORS } from '../config';
 
 export interface SitePanelProps {
     site: CampaignSiteData | null;
-    playerForgeId: number;
+    playerNodeId: number;
     battles: ActiveBattleData[];
     economy: CampaignEconomyData;
     onDispatchFrom: (siteId: number) => void;
@@ -46,10 +46,10 @@ const PRODUCIBLE_UNITS = [
 
 /**
  * Left panel showing details for the selected campaign site.
- * When viewing the player's forge, also shows production buttons.
+ * When viewing the player's node, also shows production buttons.
  * Renders as content within the left panel grid zone (no position:fixed).
  */
-export function SitePanel({ site, playerForgeId, battles, economy, onDispatchFrom, onWithdraw, onViewBattle, onProduce, onOpenResearch }: SitePanelProps) {
+export function SitePanel({ site, playerNodeId, battles, economy, onDispatchFrom, onWithdraw, onViewBattle, onProduce, onOpenResearch }: SitePanelProps) {
     if (!site) {
         return html`
             <div style=${CAMPAIGN_STYLES.leftPanelPlaceholder}>
@@ -67,7 +67,7 @@ export function SitePanel({ site, playerForgeId, battles, economy, onDispatchFro
     const totalGarrison = site.garrisonThralls + site.garrisonSentinels + site.garrisonTanks;
 
     // Income for this site type
-    const incomeStr = site.siteType === SiteType.Forge ? '+5.0/s'
+    const incomeStr = site.siteType === SiteType.Node ? '+5.0/s'
         : site.siteType === SiteType.MiningStation ? '+8.0/s'
         : site.siteType === SiteType.RelicSite ? '+3.0/s'
         : '';
@@ -76,14 +76,14 @@ export function SitePanel({ site, playerForgeId, battles, economy, onDispatchFro
     const activeBattle = battles.find(b => b.siteId === site.siteId);
     const hasBattle = !!activeBattle;
 
-    // Is this the player's forge?
-    const isPlayerForge = site.siteId === playerForgeId;
+    // Is this the player's node?
+    const isPlayerNode = site.siteId === playerNodeId;
 
     return html`
         <div>
             <!-- Site Header -->
             <div style=${CAMPAIGN_STYLES.sitePanelTitle}>
-                ${siteName}${isPlayerForge ? ' (Home)' : ''}
+                ${siteName}${isPlayerNode ? ' (Home)' : ''}
                 <span style="font-size: 10px; color: #666; margin-left: 6px">#${site.siteId}</span>
             </div>
 
@@ -156,7 +156,7 @@ export function SitePanel({ site, playerForgeId, battles, economy, onDispatchFro
                             onMouseOut=${(e: Event) => (e.currentTarget as HTMLElement).style.background = 'rgba(40,60,80,0.6)'}
                         >Dispatch</button>
                     ` : null}
-                    ${totalGarrison > 0 && !isPlayerForge ? html`
+                    ${totalGarrison > 0 && !isPlayerNode ? html`
                         <button
                             style=${CAMPAIGN_STYLES.actionBtnDanger}
                             onClick=${() => onWithdraw(site.siteId)}
@@ -167,8 +167,8 @@ export function SitePanel({ site, playerForgeId, battles, economy, onDispatchFro
                 </div>
             ` : null}
 
-            <!-- Production Section (only when viewing player's forge) -->
-            ${isPlayerForge ? html`
+            <!-- Production Section (only when viewing player's node) -->
+            ${isPlayerNode ? html`
                 <hr style=${CAMPAIGN_STYLES.divider + '; margin-top: 12px'} />
 
                 <div style=${CAMPAIGN_STYLES.panelTitle}>Production</div>

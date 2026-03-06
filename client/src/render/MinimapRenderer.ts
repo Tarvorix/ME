@@ -128,8 +128,8 @@ export class MinimapRenderer {
                 ? NEUTRAL_COLOR
                 : (PLAYER_COLORS[site.owner] ?? NEUTRAL_COLOR);
 
-            // Forge sites are larger
-            const radius = site.siteType === SiteType.Forge ? 4 : 2.5;
+            // Node sites are larger
+            const radius = site.siteType === SiteType.Node ? 4 : 2.5;
 
             this.contentGfx.circle(sx, sy, radius);
             this.contentGfx.fill({ color, alpha: 0.9 });

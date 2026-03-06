@@ -176,12 +176,12 @@ impl CampaignGame {
         }
     }
 
-    /// Check if any player has been eliminated (no forge alive).
+    /// Check if any player has been eliminated (no node alive).
     pub fn eliminated_players(&self) -> Vec<u8> {
         let mut eliminated = Vec::new();
         for pid in 0..self.player_count {
-            let forge = self.campaign_map.get_forge(pid);
-            if forge.is_none() {
+            let node = self.campaign_map.get_node(pid);
+            if node.is_none() {
                 eliminated.push(pid);
             }
         }
@@ -232,9 +232,9 @@ mod tests {
             game.tick();
         }
 
-        // Both players should still have forges
-        assert!(game.campaign_map.get_forge(0).is_some());
-        assert!(game.campaign_map.get_forge(1).is_some());
+        // Both players should still have nodes
+        assert!(game.campaign_map.get_node(0).is_some());
+        assert!(game.campaign_map.get_node(1).is_some());
     }
 
     #[test]
@@ -267,7 +267,7 @@ mod tests {
         }
 
         let bank_after = game.economies[0].energy_bank;
-        // With forge income of 5/s and garrison upkeep, should be different from initial
+        // With node income of 5/s and garrison upkeep, should be different from initial
         assert!(bank_after != bank_initial, "Economy should change over time");
     }
 }

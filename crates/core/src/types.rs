@@ -66,7 +66,7 @@ pub enum SpriteId {
     Sentinel = 1,
     HoverTank = 2,
     CommandPost = 3,
-    Forge = 4,
+    Node = 4,
     CapturePoint = 5,
 }
 
@@ -77,7 +77,7 @@ impl SpriteId {
             1 => Some(SpriteId::Sentinel),
             2 => Some(SpriteId::HoverTank),
             3 => Some(SpriteId::CommandPost),
-            4 => Some(SpriteId::Forge),
+            4 => Some(SpriteId::Node),
             5 => Some(SpriteId::CapturePoint),
             _ => None,
         }
@@ -141,10 +141,10 @@ pub fn get_frame_count(sprite_id: SpriteId, anim_state: AnimState) -> u16 {
         (SpriteId::Sentinel, AnimState::Attack) => 6,
         (SpriteId::Sentinel, AnimState::Death) => 7,
 
-        // Hover Tank, Command Post, Forge, CapturePoint: static (1 frame per direction)
+        // Hover Tank, Command Post, Node, CapturePoint: static (1 frame per direction)
         (SpriteId::HoverTank, _) => 1,
         (SpriteId::CommandPost, _) => 1,
-        (SpriteId::Forge, _) => 1,
+        (SpriteId::Node, _) => 1,
         (SpriteId::CapturePoint, _) => 1,
     }
 }

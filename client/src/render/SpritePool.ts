@@ -184,7 +184,7 @@ export class SpritePool {
             const fb1 = sheet.textures[fallbackKey];
             if (fb1) return fb1;
 
-            // Fallback 2: static atlas naming (hover_tank, command_post, forge use "{unit}_{dir}" only)
+            // Fallback 2: static atlas naming (hover_tank, command_post, node use "{unit}_{dir}" only)
             const staticKey = `${unitName}_${dirName}`;
             return sheet.textures[staticKey] ?? null;
         }

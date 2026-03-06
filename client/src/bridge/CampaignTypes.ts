@@ -6,13 +6,13 @@
 // ── Site Types ───────────────────────────────────────────────────────────
 
 export enum SiteType {
-    Forge = 0,
+    Node = 0,
     MiningStation = 1,
     RelicSite = 2,
 }
 
 export const SITE_TYPE_NAMES: Record<SiteType, string> = {
-    [SiteType.Forge]: 'Forge',
+    [SiteType.Node]: 'Node',
     [SiteType.MiningStation]: 'Mining Station',
     [SiteType.RelicSite]: 'Relic Site',
 };
@@ -35,7 +35,7 @@ export interface CampaignSiteData {
 
 export interface CampaignEconomyData {
     energyBank: number;
-    forgeIncome: number;
+    nodeIncome: number;
     mineIncome: number;
     relicIncome: number;
     totalIncome: number;

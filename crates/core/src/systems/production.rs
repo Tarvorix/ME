@@ -9,7 +9,7 @@ use crate::systems::resource::Economies;
 /// Strain added per Thrall produced.
 const THRALL_STRAIN_AMOUNT: f32 = 8.0;
 
-/// A single production job in a Forge queue line.
+/// A single production job in a Node queue line.
 #[derive(Debug, Clone)]
 pub struct ProductionJob {
     pub unit_type: SpriteId,
@@ -354,8 +354,8 @@ mod tests {
             assert!(prods.0[0].queue_unit(SpriteId::Thrall));
         }
 
-        // Thrall build time = 5s. Tick for 5 seconds (100 ticks at 50ms)
-        for _ in 0..100 {
+        // Thrall build time = 10s. Tick for 10 seconds (200 ticks at 50ms)
+        for _ in 0..200 {
             game.tick(50.0);
         }
 
@@ -428,18 +428,18 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (5 seconds)
-        for _ in 0..110 {
+        // Tick through production (10 seconds)
+        for _ in 0..210 {
             game.tick(50.0);
         }
 
         let end_bank = game.world.get_resource::<Economies>().unwrap().0[0].energy_bank;
-        // Thrall costs 30 energy. Also factor in income (5/s) and upkeep over 5.5s.
-        // The bank should be lower by ~30 from production cost minus income gained
-        // Just check that bank decreased by at least the unit cost minus 5.5s of income
-        let _expected_min_decrease = 30.0 - 5.0 * 5.5; // 30 - 27.5 = 2.5 (approx)
-        let actual_decrease = start_bank - end_bank;
-        assert!(actual_decrease > -1.0, "Bank should decrease after production, decreased by {}", actual_decrease);
+        // Thrall costs 30 energy. Over 10.5s with 5e/s income, the bank gains ~52.5 minus 30 cost.
+        // Verify bank is LESS than it would be without the production cost (start + income - upkeep).
+        // The production cost should have been deducted at some point.
+        let max_possible_bank = start_bank + 5.0 * 10.5; // start + income with no production cost
+        assert!(end_bank < max_possible_bank,
+            "Production should have cost energy: end={}, max_without_cost={}", end_bank, max_possible_bank);
     }
 
     #[test]
@@ -450,13 +450,13 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production
-        for _ in 0..110 {
+        // Tick through production (10s build time + buffer)
+        for _ in 0..220 {
             game.tick(50.0);
         }
 
         // Strain should have been added (though some decay happens)
-        // With THRALL_STRAIN_AMOUNT=8 and 5.5s elapsed, decay would reduce it
+        // With THRALL_STRAIN_AMOUNT=8 and 11s elapsed, decay would reduce it
         // but it should still be above 0
         let strain = game.world.get_resource::<Economies>().unwrap().0[0].conscription_strain;
         assert!(strain > 0.0, "Thrall production should add strain, got {}", strain);
@@ -475,10 +475,10 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Normal Thrall build time = 5s. At 90% strain, production penalty = 50%.
-        // So effective build time = 5s / (1 - 0.5) = 10s.
-        // Tick for 5.5s — should NOT be done yet
-        for _ in 0..110 {
+        // Normal Thrall build time = 10s. At 90% strain, production penalty = 50%.
+        // So effective build time = 10s / (1 - 0.5) = 20s.
+        // Tick for 11s — should NOT be done yet
+        for _ in 0..220 {
             game.tick(50.0);
         }
 
@@ -502,8 +502,8 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production + some movement time
-        for _ in 0..200 {
+        // Tick through production (10s) + some movement time
+        for _ in 0..400 {
             game.tick(50.0);
         }
 
@@ -539,8 +539,8 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (5s + buffer)
-        for _ in 0..110 {
+        // Tick through production (10s + buffer)
+        for _ in 0..220 {
             game.tick(50.0);
         }
 

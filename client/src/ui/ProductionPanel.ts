@@ -7,7 +7,7 @@ import {
 } from '../bridge/CampaignTypes';
 
 export interface ProductionPanelProps {
-    forgeSite: CampaignSiteData | null;
+    nodeSite: CampaignSiteData | null;
     economy: CampaignEconomyData;
     onProduce: (unitType: number) => void;
 }
@@ -37,27 +37,27 @@ const PRODUCIBLE_UNITS = [
 ];
 
 /**
- * Bottom-right production panel for the player's forge.
- * Shows forge garrison, produce buttons with costs, and energy/strain info.
- * Campaign production is instant: deduct energy, add units to forge garrison.
+ * Bottom-right production panel for the player's node.
+ * Shows node garrison, produce buttons with costs, and energy/strain info.
+ * Campaign production is instant: deduct energy, add units to node garrison.
  */
-export function ProductionPanel({ forgeSite, economy, onProduce }: ProductionPanelProps) {
-    if (!forgeSite) return null;
+export function ProductionPanel({ nodeSite, economy, onProduce }: ProductionPanelProps) {
+    if (!nodeSite) return null;
 
     const sc = strainColor(economy.strain);
-    const totalGarrison = forgeSite.garrisonThralls + forgeSite.garrisonSentinels + forgeSite.garrisonTanks;
+    const totalGarrison = nodeSite.garrisonThralls + nodeSite.garrisonSentinels + nodeSite.garrisonTanks;
 
     return html`
         <div style=${'padding: 10px 14px; font-size: 12px'}>
-            <div style=${CAMPAIGN_STYLES.panelTitle}>Forge Production</div>
+            <div style=${CAMPAIGN_STYLES.panelTitle}>Node Production</div>
 
-            <!-- Forge Garrison -->
+            <!-- Node Garrison -->
             <div style="margin-bottom: 8px">
-                <div style="font-size: 11px; color: #888; margin-bottom: 4px">Forge Garrison (${totalGarrison})</div>
+                <div style="font-size: 11px; color: #888; margin-bottom: 4px">Node Garrison (${totalGarrison})</div>
                 <div style="display: flex; gap: 10px; font-size: 12px">
-                    <span style="color: #ccaa77">${forgeSite.garrisonThralls}T</span>
-                    <span style="color: #77aacc">${forgeSite.garrisonSentinels}S</span>
-                    <span style="color: #cc7777">${forgeSite.garrisonTanks}H</span>
+                    <span style="color: #ccaa77">${nodeSite.garrisonThralls}T</span>
+                    <span style="color: #77aacc">${nodeSite.garrisonSentinels}S</span>
+                    <span style="color: #cc7777">${nodeSite.garrisonTanks}H</span>
                 </div>
             </div>
 

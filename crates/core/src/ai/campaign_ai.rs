@@ -15,7 +15,7 @@ pub enum CampaignGoal {
     Attack,
     /// Research technology.
     Research,
-    /// Produce units at forge.
+    /// Produce units at node.
     Produce,
 }
 
@@ -147,23 +147,23 @@ pub fn choose_campaign_action(
     match ai.current_goal {
         CampaignGoal::Expand => {
             // Find nearest neutral mine
-            if let Some(forge) = map.get_forge(player_id) {
-                let forge_id = forge.id;
+            if let Some(node) = map.get_node(player_id) {
+                let node_id = node.id;
                 let neutral_mines: Vec<_> = map.neutral_sites().into_iter()
                     .filter(|s| s.site_type == SiteType::MiningStation)
                     .collect();
 
                 if let Some(target) = neutral_mines.iter()
                     .min_by(|a, b| {
-                        let da = map.distance(forge_id, a.id);
-                        let db = map.distance(forge_id, b.id);
+                        let da = map.distance(node_id, a.id);
+                        let db = map.distance(node_id, b.id);
                         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                     })
                 {
                     // Dispatch 3 thralls to claim it
-                    if forge.garrison.iter().any(|g| g.unit_type == 0 && g.count >= 3) {
+                    if node.garrison.iter().any(|g| g.unit_type == 0 && g.count >= 3) {
                         actions.push(CampaignAction::Dispatch {
-                            source: forge_id,
+                            source: node_id,
                             target: target.id,
                             units: vec![GarrisonedUnit::new(0, 3)],
                         });
@@ -172,13 +172,13 @@ pub fn choose_campaign_action(
             }
         }
         CampaignGoal::Defend => {
-            // Garrison key sites (forges) by producing
+            // Garrison key sites (nodes) by producing
             actions.push(CampaignAction::ProduceUnits { unit_type: 0, count: 5 });
         }
         CampaignGoal::Attack => {
             // Find weakest enemy site
-            if let Some(forge) = map.get_forge(player_id) {
-                let forge_id = forge.id;
+            if let Some(node) = map.get_node(player_id) {
+                let node_id = node.id;
                 let enemy_sites: Vec<_> = map.sites.iter()
                     .filter(|s| s.owner != player_id && s.owner != 255 && !s.is_contested)
                     .collect();
@@ -187,7 +187,7 @@ pub fn choose_campaign_action(
                     .min_by(|a, b| a.garrison_count().cmp(&b.garrison_count()))
                 {
                     // Send a force to attack
-                    let available_thralls = forge.garrison.iter()
+                    let available_thralls = node.garrison.iter()
                         .find(|g| g.unit_type == 0)
                         .map(|g| g.count)
                         .unwrap_or(0);
@@ -195,7 +195,7 @@ pub fn choose_campaign_action(
                     if available_thralls >= 5 {
                         let send = (available_thralls / 2).max(5);
                         actions.push(CampaignAction::Dispatch {
-                            source: forge_id,
+                            source: node_id,
                             target: target.id,
                             units: vec![GarrisonedUnit::new(0, send)],
                         });
@@ -233,7 +233,7 @@ pub enum CampaignAction {
     StartResearch {
         tech: TechId,
     },
-    /// Produce units at the forge.
+    /// Produce units at the node.
     ProduceUnits {
         unit_type: u16,
         count: u32,
@@ -279,8 +279,8 @@ pub fn campaign_ai_tick(
                     }
                 }
                 CampaignAction::ProduceUnits { unit_type, count } => {
-                    // Add units to forge garrison (simplified production for campaign level)
-                    if let Some(forge) = map.get_forge_mut(ai.player_id) {
+                    // Add units to node garrison (simplified production for campaign level)
+                    if let Some(node) = map.get_node_mut(ai.player_id) {
                         let bp = crate::blueprints::get_blueprint(
                             crate::types::SpriteId::from_u16(unit_type).unwrap_or(crate::types::SpriteId::Thrall)
                         );
@@ -288,7 +288,7 @@ pub fn campaign_ai_tick(
                         if economies[pid].energy_bank >= total_cost {
                             economies[pid].energy_bank -= total_cost;
                             crate::campaign::garrison::add_to_garrison(
-                                &mut forge.garrison,
+                                &mut node.garrison,
                                 GarrisonedUnit::new(unit_type, count),
                             );
                         }
@@ -324,12 +324,12 @@ mod tests {
         // Force immediate evaluation
         ai_states[0].ticks_since_eval = 99;
 
-        let forge_garrison_before = map.get_forge(0).unwrap().garrison_count();
+        let node_garrison_before = map.get_node(0).unwrap().garrison_count();
 
         campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
 
         // Should have dispatched units
-        assert!(!dispatch.orders.is_empty() || forge_garrison_before == 0,
+        assert!(!dispatch.orders.is_empty() || node_garrison_before == 0,
             "AI should try to claim neutral mines");
     }
 
@@ -347,8 +347,8 @@ mod tests {
 
         // Give enough money but not enough garrison for attack (< 15)
         economies[0].energy_bank = 1000.0;
-        map.get_forge_mut(0).unwrap().garrison.clear();
-        map.get_forge_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 10));
+        map.get_node_mut(0).unwrap().garrison.clear();
+        map.get_node_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 10));
 
         let mut ai_states = vec![
             CampaignAiState::new(0, CampaignAiDifficulty::Normal),
@@ -374,7 +374,7 @@ mod tests {
         }
 
         // Low garrison count but have money
-        map.get_forge_mut(0).unwrap().garrison.clear();
+        map.get_node_mut(0).unwrap().garrison.clear();
         economies[0].energy_bank = 500.0;
 
         let mut ai_states = vec![
@@ -382,11 +382,11 @@ mod tests {
         ];
         ai_states[0].ticks_since_eval = 99;
 
-        let garrison_before = map.get_forge(0).unwrap().garrison_count();
+        let garrison_before = map.get_node(0).unwrap().garrison_count();
 
         campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
 
-        let garrison_after = map.get_forge(0).unwrap().garrison_count();
+        let garrison_after = map.get_node(0).unwrap().garrison_count();
         assert!(garrison_after > garrison_before, "AI should produce units when garrison is low");
     }
 
@@ -402,8 +402,8 @@ mod tests {
         }
 
         // Give a lot of garrison (>= 15 for attack threshold)
-        map.get_forge_mut(0).unwrap().garrison.clear();
-        map.get_forge_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 20));
+        map.get_node_mut(0).unwrap().garrison.clear();
+        map.get_node_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 20));
 
         let goal = evaluate_campaign_state(&map, &economies[0], &research[0], 0);
 
@@ -423,8 +423,8 @@ mod tests {
         }
 
         // Low garrison (< 15 for defend threshold)
-        map.get_forge_mut(0).unwrap().garrison.clear();
-        map.get_forge_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+        map.get_node_mut(0).unwrap().garrison.clear();
+        map.get_node_mut(0).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
 
         let goal = evaluate_campaign_state(&map, &economies[0], &research[0], 0);
         assert_eq!(goal, CampaignGoal::Defend, "AI should defend when threatened");
@@ -442,7 +442,7 @@ mod tests {
             }
         }
 
-        map.get_forge_mut(0).unwrap().garrison.clear();
+        map.get_node_mut(0).unwrap().garrison.clear();
         economies[0].energy_bank = 500.0;
 
         let bank_before = economies[0].energy_bank;
@@ -483,8 +483,8 @@ mod tests {
         let p0_sites = map.sites_owned_by(0).len();
         let p1_sites = map.sites_owned_by(1).len();
 
-        assert!(p0_sites >= 1, "Player 0 should still have at least forge");
-        assert!(p1_sites >= 1, "Player 1 should still have at least forge");
+        assert!(p0_sites >= 1, "Player 0 should still have at least node");
+        assert!(p1_sites >= 1, "Player 1 should still have at least node");
     }
 
     #[test]

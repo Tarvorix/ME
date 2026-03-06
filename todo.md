@@ -504,3 +504,61 @@
 - [ ] Health bars follow units during combat and disappear on death
 - [ ] Right-click on enemy issues attack command
 - [ ] WASD/arrow keys and edge scrolling work in RTS battle view
+
+## Rename: Forge → Node (Rust)
+- [x] types.rs: SpriteId::Forge → SpriteId::Node
+- [x] blueprints.rs: FORGE_BLUEPRINT → NODE_BLUEPRINT, match arms
+- [x] game.rs: spawn_forge → spawn_node, check_forge_alive → check_node_alive, spawn_starting_units comments
+- [x] command.rs: UpgradeForge → UpgradeNode
+- [x] map.rs: comment update
+- [x] campaign/map.rs: SiteType::Forge → SiteType::Node, player_forges → player_nodes, get_forge → get_node, get_forge_mut → get_node_mut
+- [x] campaign/economy.rs: forge_income → node_income, forge_inc → node_inc
+- [x] campaign/bridge.rs: SpriteId::Forge → SpriteId::Node
+- [x] campaign/dispatch.rs: player_forges → player_nodes, forge variables → node
+- [x] campaign_game.rs: get_forge → get_node, forge variable → node
+- [x] deployment.rs: SpriteId::Forge → SpriteId::Node, forges → nodes
+- [x] protocol.rs: Command::UpgradeForge → Command::UpgradeNode
+- [x] systems/animation.rs: SpriteId::Forge → SpriteId::Node
+- [x] systems/battle_victory.rs: SpriteId::Forge → SpriteId::Node
+- [x] systems/capture.rs: SpriteId::Forge → SpriteId::Node
+- [x] systems/combat.rs: SpriteId::Forge → SpriteId::Node
+- [x] systems/command_processor.rs: UpgradeForge → UpgradeNode, process_upgrade_forge → process_upgrade_node
+- [x] systems/production.rs: comment update
+- [x] systems/resource.rs: comment update
+- [x] ai/mcts.rs: forge_alive → node_alive, SpriteId::Forge → SpriteId::Node, spawn_forge → spawn_node
+- [x] ai/campaign_ai.rs: get_forge → get_node, get_forge_mut → get_node_mut, forge variables → node
+- [x] ai/player.rs: comment update
+- [x] crates/wasm/src/lib.rs: SiteType::Forge → SiteType::Node, campaign_get_player_forge → campaign_get_player_node, forge_income → node_income
+- [x] crates/server/src/match_runner.rs: check_forge_alive → check_node_alive, SpriteId::Forge → SpriteId::Node, test renames
+- [x] crates/server/src/mcp/resources.rs: "Forge" → "Node" in display strings
+- [x] crates/core/tests/ai_integration.rs: forge variables → node, check_forge_alive → check_node_alive
+- [x] crates/core/tests/campaign_integration.rs: player_forges → player_nodes, forge variables → node
+- [x] All 379 tests pass, zero remaining "forge" references in Rust
+
+## Rename: Forge → Node (Client TypeScript)
+- [x] config.ts: FORGE_SCALE → NODE_SCALE
+- [x] bridge/types.ts: SpriteType.Forge → SpriteType.Node (UNIT_NAMES atlas mapping stays 'forge')
+- [x] bridge/CampaignTypes.ts: SiteType.Forge → SiteType.Node, display name 'Forge' → 'Node', forgeIncome → nodeIncome
+- [x] bridge/CampaignBridge.ts: getPlayerForge → getPlayerNode, forgeIncome → nodeIncome, comments updated (WASM function names unchanged)
+- [x] render/SpritePool.ts: comment updated (atlas entry stays 'forge')
+- [x] render/MinimapRenderer.ts: SiteType.Forge → SiteType.Node, comment updated
+- [x] render/CampaignSiteSprite.ts: SiteType.Forge → SiteType.Node, drawForgeIcon → drawNodeIcon, labels/comments updated
+- [x] ui/HUD.ts: display name 'Forge' → 'Node'
+- [x] ui/SelectionPanel.ts: SpriteType.Forge → SpriteType.Node, display name 'Forge' → 'Node'
+- [x] ui/ProductionPanel.ts: forgeSite → nodeSite, 'Forge Production' → 'Node Production', 'Forge Garrison' → 'Node Garrison', comments updated
+- [x] ui/CampaignResourceBar.ts: onSelectForge → onSelectNode, title/tooltip updated, forgeIncome → nodeIncome
+- [x] ui/SitePanel.ts: playerForgeId → playerNodeId, isPlayerForge → isPlayerNode, SiteType.Forge → SiteType.Node, comments updated
+- [x] ui/CampaignHUD.ts: forgeId → nodeId, handleSelectForge → handleSelectNode, onSelectForge → onSelectNode, playerForgeId → playerNodeId, comments/alerts updated
+- [x] ui/VictoryScreen.ts: 'forges' → 'nodes', 'forge' → 'node'
+- [x] ui/styles.ts: comment updated
+- [x] bridge/CampaignBridge.ts: campaign_get_player_forge → campaign_get_player_node (WASM import name)
+
+## Chunk 57: Gameplay Tuning — Slower Dispatch & Production
+- [x] Halve army dispatch speed: TRAVEL_SPEED 5.0 → 2.5 in campaign/map.rs (doubles travel time)
+- [x] Double unit build times: Thrall 5→10s, Sentinel 15→30s, HoverTank 30→60s in blueprints.rs
+- [x] Update travel_time test assertion (5.0 → 2.5)
+- [x] Update blueprint test assertion (Thrall build_time 5.0 → 10.0)
+- [x] Update production tests: doubled tick counts for 5 tests in production.rs
+- [x] Update AI integration test: doubled tick count for test_ai_produces_units
+- [x] Fix test_production_costs_energy assertion for longer build time
+- [x] All tests pass (290 Rust tests), WASM + client build clean

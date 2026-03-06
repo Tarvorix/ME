@@ -260,7 +260,7 @@ export const CAMPAIGN_STYLES = {
         padding-top: 8px;
     `,
 
-    /** Production button row (inside left panel when forge selected). */
+    /** Production button row (inside left panel when node selected). */
     produceBtn: `
         display: flex; justify-content: space-between; align-items: center;
         padding: 6px 8px; margin: 3px 0;

@@ -11,7 +11,7 @@ const BASE_STRAIN_DECAY: f32 = 5.0;
 pub struct PlayerEconomy {
     /// Current energy bank balance.
     pub energy_bank: f32,
-    /// Base income from Forge (energy/sec).
+    /// Base income from Node (energy/sec).
     pub base_income: f32,
     /// Income from mining stations (energy/sec).
     pub mining_income: f32,

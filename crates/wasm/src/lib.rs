@@ -317,7 +317,7 @@ fn u8_to_tech(id: u8) -> Option<TechId> {
 
 fn site_type_to_u8(st: SiteType) -> u8 {
     match st {
-        SiteType::Forge => 0,
+        SiteType::Node => 0,
         SiteType::MiningStation => 1,
         SiteType::RelicSite => 2,
     }
@@ -405,7 +405,7 @@ pub fn campaign_get_site_count() -> u32 {
 /// Write all site data into the site buffer and return pointer.
 /// Buffer format per site (32 bytes):
 ///   [0..3]   site_id            : u32
-///   [4]      site_type          : u8 (0=Forge, 1=Mine, 2=Relic)
+///   [4]      site_type          : u8 (0=Node, 1=Mine, 2=Relic)
 ///   [5]      owner              : u8 (255=neutral)
 ///   [6]      is_contested       : u8
 ///   [7]      garrison_count     : u8 (total units, capped at 255)
@@ -476,10 +476,10 @@ pub fn campaign_get_map_height() -> f32 {
     campaign().campaign_map.height
 }
 
-/// Get the forge site ID for a player. Returns u32::MAX if invalid.
+/// Get the node site ID for a player. Returns u32::MAX if invalid.
 #[wasm_bindgen]
-pub fn campaign_get_player_forge(player: u32) -> u32 {
-    campaign().campaign_map.player_forges
+pub fn campaign_get_player_node(player: u32) -> u32 {
+    campaign().campaign_map.player_nodes
         .get(player as usize)
         .copied()
         .unwrap_or(u32::MAX)
@@ -490,7 +490,7 @@ pub fn campaign_get_player_forge(player: u32) -> u32 {
 /// Write economy data for a player into the economy buffer and return pointer.
 /// Buffer format (40 bytes):
 ///   [0..3]   energy_bank     : f32
-///   [4..7]   forge_income    : f32
+///   [4..7]   node_income     : f32
 ///   [8..11]  mine_income     : f32
 ///   [12..15] relic_income    : f32
 ///   [16..19] total_income    : f32
@@ -508,7 +508,7 @@ pub fn campaign_get_economy_ptr(player: u32) -> *const u8 {
 
     if let Some(econ) = cg.economies.get(pid) {
         write_f32(buf, 0, econ.energy_bank);
-        write_f32(buf, 4, econ.forge_income);
+        write_f32(buf, 4, econ.node_income);
         write_f32(buf, 8, econ.mine_income);
         write_f32(buf, 12, econ.relic_income);
         write_f32(buf, 16, econ.total_income());
@@ -934,8 +934,8 @@ pub fn campaign_cmd_research(player: u32, tech_id: u32) -> u32 {
     }
 }
 
-/// Produce units at the player's forge.
-/// Deducts energy cost and adds units to forge garrison instantly.
+/// Produce units at the player's node.
+/// Deducts energy cost and adds units to node garrison instantly.
 /// unit_type: 0=Thrall, 1=Sentinel, 2=HoverTank.
 /// Returns 1 on success, 0 on failure.
 #[wasm_bindgen]
@@ -969,7 +969,7 @@ pub fn campaign_cmd_produce(player: u32, unit_type: u32, count: u32) -> u32 {
         return 0;
     }
 
-    if let Some(forge) = cg.campaign_map.get_forge_mut(player as u8) {
+    if let Some(node) = cg.campaign_map.get_node_mut(player as u8) {
         cg.economies[pid].energy_bank -= total_cost;
 
         // Thrall production increases conscription strain
@@ -978,7 +978,7 @@ pub fn campaign_cmd_produce(player: u32, unit_type: u32, count: u32) -> u32 {
         }
 
         machine_empire_core::campaign::garrison::add_to_garrison(
-            &mut forge.garrison,
+            &mut node.garrison,
             GarrisonedUnit::new(unit_type as u16, count),
         );
         1
@@ -987,7 +987,7 @@ pub fn campaign_cmd_produce(player: u32, unit_type: u32, count: u32) -> u32 {
     }
 }
 
-/// Withdraw all garrison from a site, dispatching them back to the player's forge.
+/// Withdraw all garrison from a site, dispatching them back to the player's node.
 /// Returns 1 on success, 0 on failure.
 #[wasm_bindgen]
 pub fn campaign_cmd_withdraw(player: u32, site_id: u32) -> u32 {
@@ -1009,14 +1009,14 @@ pub fn campaign_cmd_withdraw(player: u32, site_id: u32) -> u32 {
         return 0;
     }
 
-    // Get forge ID
-    let forge_id = match cg.campaign_map.player_forges.get(pid as usize) {
+    // Get node ID
+    let node_id = match cg.campaign_map.player_nodes.get(pid as usize) {
         Some(&id) => id,
         None => return 0,
     };
 
-    // Can't withdraw from forge itself
-    if site_id == forge_id {
+    // Can't withdraw from node itself
+    if site_id == node_id {
         return 0;
     }
 
@@ -1025,7 +1025,7 @@ pub fn campaign_cmd_withdraw(player: u32, site_id: u32) -> u32 {
         &mut cg.campaign_map,
         pid,
         site_id,
-        forge_id,
+        node_id,
         units,
     ) {
         Some(_) => 1,

@@ -123,7 +123,7 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
 }
 
 /// Spawn a player's force at a given position.
-/// Only spawns CommandPost + combat units (no Forge — that's campaign-level only).
+/// Only spawns CommandPost + combat units (no Node — that's campaign-level only).
 /// If `is_ai` is true, adds AiControlled components to combat units.
 fn spawn_force(game: &mut Game, player: u8, forces: &[GarrisonedUnit], cx: f32, cy: f32, is_ai: bool) -> crate::ecs::entity::Entity {
     // Spawn Command Post
@@ -180,7 +180,7 @@ pub fn extract_battle_result(game: &Game, site_id: u32, attacker: u8, defender: 
 
     for (entity, ut) in ut_storage.iter() {
         // Skip buildings
-        if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Forge || ut.kind == SpriteId::CapturePoint {
+        if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Node || ut.kind == SpriteId::CapturePoint {
             continue;
         }
 
@@ -293,13 +293,13 @@ mod tests {
 
         let ut_storage = game.world.get_storage::<UnitType>().unwrap();
 
-        // Count attacker units (player 0): 10T + 3S + 1HT + CP = 15 (no Forge in battles)
+        // Count attacker units (player 0): 10T + 3S + 1HT + CP = 15 (no Node in battles)
         let attacker_count = ut_storage.iter()
             .filter(|(_, ut)| ut.owner == 0)
             .count();
         assert_eq!(attacker_count, 15, "Attacker should have 15 entities, got {}", attacker_count);
 
-        // Count defender units (player 1): 8T + 2S + CP = 11 (no Forge in battles)
+        // Count defender units (player 1): 8T + 2S + CP = 11 (no Node in battles)
         let defender_count = ut_storage.iter()
             .filter(|(_, ut)| ut.owner == 1)
             .count();

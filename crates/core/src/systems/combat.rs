@@ -343,7 +343,7 @@ fn apply_hazard_damage(world: &mut World, delta_secs: f32) {
                     return None;
                 }
                 // Buildings don't take hazard damage
-                if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Forge {
+                if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Node {
                     return None;
                 }
                 let tx = pos.x.floor().max(0.0) as u32;

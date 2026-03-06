@@ -295,7 +295,7 @@ mod tests {
             Command::SetRally { player: 0, x: 30.0, y: 30.0 },
             Command::Deploy { player: 0, cp_x: 8.0, cp_y: 8.0 },
             Command::ConfirmDeployment { player: 0 },
-            Command::UpgradeForge { player: 0, upgrade: 1 },
+            Command::UpgradeNode { player: 0, upgrade: 1 },
             Command::CampaignResearch { player: 0, tech_id: 2 },
             Command::CampaignDispatch { player: 0, source_site: 0, target_site: 1, units: vec![(0, 5)] },
             Command::CampaignWithdraw { player: 0, site_id: 3 },

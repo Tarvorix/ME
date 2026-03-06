@@ -11,7 +11,7 @@ import {
     campaign_set_paused, campaign_is_paused,
     campaign_get_tick, campaign_add_ai, campaign_get_player_count,
     campaign_get_site_count, campaign_get_site_data_ptr, campaign_get_site_data_len,
-    campaign_get_map_width, campaign_get_map_height, campaign_get_player_forge,
+    campaign_get_map_width, campaign_get_map_height, campaign_get_player_node,
     campaign_get_economy_ptr, campaign_get_economy_len,
     campaign_get_research_ptr, campaign_get_research_len,
     campaign_get_available_techs_ptr, campaign_get_available_techs_count,
@@ -132,9 +132,9 @@ export class CampaignBridge {
         };
     }
 
-    /** Get the forge site ID for a player. Returns -1 if invalid. */
-    getPlayerForge(player: number): number {
-        const id = campaign_get_player_forge(player);
+    /** Get the node site ID for a player. Returns -1 if invalid. */
+    getPlayerNode(player: number): number {
+        const id = campaign_get_player_node(player);
         return id === 0xFFFFFFFF ? -1 : id;
     }
 
@@ -147,7 +147,7 @@ export class CampaignBridge {
 
         if (ptr === 0) {
             return {
-                energyBank: 0, forgeIncome: 0, mineIncome: 0, relicIncome: 0,
+                energyBank: 0, nodeIncome: 0, mineIncome: 0, relicIncome: 0,
                 totalIncome: 0, totalExpenses: 0, netRate: 0, strain: 0,
                 garrisonUpkeep: 0, deployedUpkeep: 0,
             };
@@ -156,7 +156,7 @@ export class CampaignBridge {
         const view = new DataView(this.memory.buffer, ptr, len);
         return {
             energyBank: view.getFloat32(0, true),
-            forgeIncome: view.getFloat32(4, true),
+            nodeIncome: view.getFloat32(4, true),
             mineIncome: view.getFloat32(8, true),
             relicIncome: view.getFloat32(12, true),
             totalIncome: view.getFloat32(16, true),
@@ -398,7 +398,7 @@ export class CampaignBridge {
     }
 
     /**
-     * Produce units at the player's forge.
+     * Produce units at the player's node.
      * @param unitType 0=Thrall, 1=Sentinel, 2=HoverTank.
      * @returns true on success.
      */
@@ -407,7 +407,7 @@ export class CampaignBridge {
     }
 
     /**
-     * Withdraw all garrison from a site back to the player's forge.
+     * Withdraw all garrison from a site back to the player's node.
      * @returns true on success.
      */
     cmdWithdraw(player: number, siteId: number): boolean {

@@ -72,10 +72,10 @@ fn test_ai_vs_ai_match_completes() {
         game.tick(50.0);
 
         // Check if a winner has been determined
-        let p0_forge = game.check_forge_alive(0);
-        let p1_forge = game.check_forge_alive(1);
-        if !p0_forge || !p1_forge {
-            // Match ended — one forge was destroyed
+        let p0_node = game.check_node_alive(0);
+        let p1_node = game.check_node_alive(1);
+        if !p0_node || !p1_node {
+            // Match ended — one node was destroyed
             break;
         }
     }
@@ -100,8 +100,8 @@ fn test_ai_produces_units() {
     let initial_combat_p0 = count_player_combat_units(&game, 0);
     let initial_combat_p1 = count_player_combat_units(&game, 1);
 
-    // Run for 200 ticks (10 seconds — enough for production)
-    for _ in 0..200 {
+    // Run for 400 ticks (20 seconds — enough for production with 10s Thrall build time)
+    for _ in 0..400 {
         game.tick(50.0);
     }
 
@@ -175,9 +175,9 @@ fn test_mcts_state_extraction_during_match() {
 
     let state = MctsPlanner::extract_state(&game.world, 2, 64, 64);
 
-    // Both forges should be alive
-    assert!(state.forge_alive[0], "Player 0 forge should be alive");
-    assert!(state.forge_alive[1], "Player 1 forge should be alive");
+    // Both nodes should be alive
+    assert!(state.node_alive[0], "Player 0 node should be alive");
+    assert!(state.node_alive[1], "Player 1 node should be alive");
 
     // Both players should have units
     assert!(state.total_units(0) > 0, "Player 0 should have units");

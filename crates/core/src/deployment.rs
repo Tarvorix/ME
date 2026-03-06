@@ -173,14 +173,14 @@ pub fn validate_placement(deployment: &DeploymentState, player_id: u8, x: f32, y
 }
 
 /// Deploy a player's starting force at the given Command Post position.
-/// Spawns: Command Post + Forge + 10 Thralls + 3 Sentinels + 1 Hover Tank.
+/// Spawns: Command Post + Node + 10 Thralls + 3 Sentinels + 1 Hover Tank.
 /// Returns the Command Post entity.
 pub fn deploy_force(world: &mut World, player_id: u8, cp_x: f32, cp_y: f32) -> Entity {
     // Spawn Command Post
     let cp = spawn_entity(world, SpriteId::CommandPost, cp_x, cp_y, player_id);
 
-    // Spawn Forge nearby
-    spawn_entity(world, SpriteId::Forge, cp_x + 2.0, cp_y - 2.0, player_id);
+    // Spawn Node nearby
+    spawn_entity(world, SpriteId::Node, cp_x + 2.0, cp_y - 2.0, player_id);
 
     // Spawn 10 Thralls in formation
     for i in 0..10 {
@@ -379,7 +379,7 @@ mod tests {
         let ut_storage = game.world.get_storage::<UnitType>().unwrap();
         let count = ut_storage.iter().filter(|(_, ut)| ut.owner == 0).count();
 
-        // Should have: 1 CP + 1 Forge + 10 Thralls + 3 Sentinels + 1 HoverTank = 16
+        // Should have: 1 CP + 1 Node + 10 Thralls + 3 Sentinels + 1 HoverTank = 16
         assert_eq!(count, 16, "Should have 16 entities, got {}", count);
 
         // Check types
@@ -387,13 +387,13 @@ mod tests {
         let sentinels = ut_storage.iter().filter(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::Sentinel).count();
         let tanks = ut_storage.iter().filter(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::HoverTank).count();
         let cps = ut_storage.iter().filter(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::CommandPost).count();
-        let forges = ut_storage.iter().filter(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::Forge).count();
+        let nodes = ut_storage.iter().filter(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::Node).count();
 
         assert_eq!(thralls, 10, "Should have 10 Thralls");
         assert_eq!(sentinels, 3, "Should have 3 Sentinels");
         assert_eq!(tanks, 1, "Should have 1 Hover Tank");
         assert_eq!(cps, 1, "Should have 1 Command Post");
-        assert_eq!(forges, 1, "Should have 1 Forge");
+        assert_eq!(nodes, 1, "Should have 1 Node");
     }
 
     #[test]

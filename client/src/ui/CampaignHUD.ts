@@ -27,7 +27,7 @@ interface BattleNotification {
  * Campaign HUD orchestrator.
  * Renders the ENTIRE campaign UI as a CSS grid layout:
  *   - TOP BAR: resources + Research/Production buttons + pause
- *   - LEFT PANEL: selected site info + forge production (when forge selected)
+ *   - LEFT PANEL: selected site info + node production (when node selected)
  *   - RIGHT PANEL: alert feed
  *   - OVERLAYS: battle notification, research, dispatch, victory
  *
@@ -96,8 +96,8 @@ export class CampaignHUD {
         const selectedSiteId = this.renderer.selectedSiteId;
         const selectedSite = sites.find(s => s.siteId === selectedSiteId) ?? null;
 
-        // Get player's forge data
-        const forgeId = this.bridge.getPlayerForge(0);
+        // Get player's node data
+        const nodeId = this.bridge.getPlayerNode(0);
 
         // Dispatch dialog site data
         const dispatchSource = sites.find(s => s.siteId === this.dispatchSourceId) ?? null;
@@ -117,7 +117,7 @@ export class CampaignHUD {
                             tickCount=${tickCount}
                             onTogglePause=${this.handleTogglePause}
                             onOpenResearch=${this.handleOpenResearch}
-                            onSelectForge=${() => this.handleSelectForge(forgeId)}
+                            onSelectNode=${() => this.handleSelectNode(nodeId)}
                         />
                     </div>
 
@@ -126,7 +126,7 @@ export class CampaignHUD {
                         <div style=${CAMPAIGN_STYLES.leftPanel}>
                             <${SitePanel}
                                 site=${selectedSite}
-                                playerForgeId=${forgeId}
+                                playerNodeId=${nodeId}
                                 battles=${battles}
                                 economy=${economy}
                                 onDispatchFrom=${this.handleDispatchFrom}
@@ -334,9 +334,9 @@ export class CampaignHUD {
         this.showResearch = true;
     };
 
-    private handleSelectForge = (forgeId: number): void => {
-        if (forgeId >= 0) {
-            this.renderer.selectedSiteId = forgeId;
+    private handleSelectNode = (nodeId: number): void => {
+        if (nodeId >= 0) {
+            this.renderer.selectedSiteId = nodeId;
         }
     };
 
@@ -360,7 +360,7 @@ export class CampaignHUD {
     private handleWithdraw = (siteId: number): void => {
         const success = this.bridge.cmdWithdraw(0, siteId);
         if (success) {
-            this.addAlert('Garrison withdrawn to forge', 'info');
+            this.addAlert('Garrison withdrawn to node', 'info');
         }
     };
 

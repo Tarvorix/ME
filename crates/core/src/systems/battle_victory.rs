@@ -140,7 +140,7 @@ pub fn battle_victory_system(world: &mut World) {
                 SpriteId::Thrall | SpriteId::Sentinel | SpriteId::HoverTank => {
                     alive_units[pid] += 1;
                 }
-                SpriteId::CommandPost | SpriteId::Forge => {
+                SpriteId::CommandPost | SpriteId::Node => {
                     alive_buildings[pid] += 1;
                 }
                 SpriteId::CapturePoint => {

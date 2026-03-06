@@ -122,7 +122,7 @@ export class HUD {
             case 1: return 'Sentinel';
             case 2: return 'Hover Tank';
             case 3: return 'Command Post';
-            case 4: return 'Forge';
+            case 4: return 'Node';
             default: return `Unit ${spriteId}`;
         }
     }

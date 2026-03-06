@@ -34,7 +34,7 @@ impl TerrainType {
 
 /// Returns the movement cost multiplier for a given terrain type and unit kind.
 /// HoverTank always has cost 1.0 (ignores terrain), except Impassable which is infinite.
-/// Buildings (CommandPost, Forge) cannot move so their cost is irrelevant.
+/// Buildings (CommandPost, Node) cannot move so their cost is irrelevant.
 pub fn movement_cost(terrain: TerrainType, unit_kind: SpriteId) -> f32 {
     if terrain == TerrainType::Impassable {
         return f32::INFINITY;

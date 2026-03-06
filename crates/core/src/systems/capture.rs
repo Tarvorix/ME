@@ -56,7 +56,7 @@ pub fn capture_system(world: &mut World) {
         pos_storage.iter().filter_map(|(entity, pos)| {
             let ut = ut_storage.get(entity)?;
             // Skip buildings and capture points
-            if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Forge || ut.kind == SpriteId::CapturePoint {
+            if ut.kind == SpriteId::CommandPost || ut.kind == SpriteId::Node || ut.kind == SpriteId::CapturePoint {
                 return None;
             }
             // Check alive

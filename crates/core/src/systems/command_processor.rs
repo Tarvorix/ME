@@ -47,8 +47,8 @@ pub fn command_processor_system(world: &mut World) {
             Command::ConfirmDeployment { player } => {
                 crate::deployment::process_confirm_deployment(world, player);
             }
-            Command::UpgradeForge { player, upgrade } => {
-                process_upgrade_forge(world, player, upgrade);
+            Command::UpgradeNode { player, upgrade } => {
+                process_upgrade_node(world, player, upgrade);
             }
             Command::CampaignResearch { .. } |
             Command::CampaignDispatch { .. } |
@@ -190,7 +190,7 @@ fn process_cancel_production(world: &mut World, player: u8, line_index: u8) {
     }
 }
 
-fn process_upgrade_forge(world: &mut World, player: u8, upgrade: u8) {
+fn process_upgrade_node(world: &mut World, player: u8, upgrade: u8) {
     if let Some(prods) = world.get_resource_mut::<Productions>() {
         let idx = player as usize;
         if idx < prods.0.len() {

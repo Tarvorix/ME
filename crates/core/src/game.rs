@@ -222,13 +222,13 @@ impl Game {
         self.world.get_resource::<BattleMap>().unwrap()
     }
 
-    /// Spawn a Forge building at the given tile position.
-    pub fn spawn_forge(&mut self, x: f32, y: f32, owner: u8) -> Entity {
-        self.spawn_unit(SpriteId::Forge, x, y, owner)
+    /// Spawn a Node building at the given tile position.
+    pub fn spawn_node(&mut self, x: f32, y: f32, owner: u8) -> Entity {
+        self.spawn_unit(SpriteId::Node, x, y, owner)
     }
 
-    /// Check if a player has any Forge entity alive.
-    pub fn check_forge_alive(&self, player_id: u8) -> bool {
+    /// Check if a player has any Node entity alive.
+    pub fn check_node_alive(&self, player_id: u8) -> bool {
         let ut_storage = match self.world.get_storage::<UnitType>() {
             Some(s) => s,
             None => return false,
@@ -236,7 +236,7 @@ impl Game {
         let health_storage = self.world.get_storage::<Health>();
 
         for (entity, ut) in ut_storage.iter() {
-            if ut.owner == player_id && ut.kind == SpriteId::Forge {
+            if ut.owner == player_id && ut.kind == SpriteId::Node {
                 // Check if it's alive (health > 0 or no health component)
                 if let Some(hs) = &health_storage {
                     if let Some(h) = hs.get(entity) {
@@ -254,7 +254,7 @@ impl Game {
         false
     }
 
-    /// Spawn starting units for a player: Command Post + Forge + 3 Thralls.
+    /// Spawn starting units for a player: Command Post + Node + 3 Thralls.
     /// Also registers the Command Post with the production system.
     pub fn spawn_starting_units(&mut self, player_id: u8, x: f32, y: f32) {
         use crate::systems::production::Productions;
@@ -271,8 +271,8 @@ impl Game {
             }
         }
 
-        // Spawn Forge nearby
-        self.spawn_forge(x + 2.0, y - 2.0, player_id);
+        // Spawn Node nearby
+        self.spawn_node(x + 2.0, y - 2.0, player_id);
 
         // Spawn 3 starting Thralls
         for i in 0..3 {
@@ -841,7 +841,7 @@ mod tests {
         let _rally = Command::SetRally { player: 0, x: 10.0, y: 10.0 };
         let _deploy = Command::Deploy { player: 0, cp_x: 8.0, cp_y: 8.0 };
         let _confirm = Command::ConfirmDeployment { player: 0 };
-        let _upgrade = Command::UpgradeForge { player: 0, upgrade: 0 };
+        let _upgrade = Command::UpgradeNode { player: 0, upgrade: 0 };
         let _research = Command::CampaignResearch { player: 0, tech_id: 0 };
         let _dispatch = Command::CampaignDispatch { player: 0, source_site: 0, target_site: 1, units: vec![(0, 5)] };
         let _withdraw = Command::CampaignWithdraw { player: 0, site_id: 0 };

@@ -459,7 +459,7 @@ mod tests {
         let p0_units = count_player_units(&game, 0);
         let p1_units = count_player_units(&game, 1);
 
-        // At minimum, something should be alive (forges, CPs, or some units)
+        // At minimum, something should be alive (nodes, CPs, or some units)
         let total = p0_units + p1_units;
         assert!(total > 0, "At least some entities should still exist after 500 ticks");
     }

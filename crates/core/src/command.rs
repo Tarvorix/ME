@@ -29,7 +29,7 @@ pub enum Command {
         tile_x: u32,
         tile_y: u32,
     },
-    /// Queue unit production at the player's Forge.
+    /// Queue unit production at the player's Node.
     Produce {
         player: u8,
         unit_type: u16,
@@ -55,8 +55,8 @@ pub enum Command {
     ConfirmDeployment {
         player: u8,
     },
-    /// Upgrade a Forge production line.
-    UpgradeForge {
+    /// Upgrade a Node production line.
+    UpgradeNode {
         player: u8,
         upgrade: u8,
     },

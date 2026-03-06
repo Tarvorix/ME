@@ -23,7 +23,7 @@ pub fn list_resources() -> Vec<ResourceDefinition> {
         ResourceDefinition {
             uri: "game://state/my_buildings".into(),
             name: "My Buildings".into(),
-            description: "List of your buildings (Command Post, Forge) with positions and health.".into(),
+            description: "List of your buildings (Command Post, Node) with positions and health.".into(),
             mime_type: "application/json".into(),
         },
         ResourceDefinition {
@@ -323,7 +323,7 @@ fn sprite_id_name(sprite_id: u16) -> &'static str {
         1 => "Sentinel",
         2 => "HoverTank",
         3 => "CommandPost",
-        4 => "Forge",
+        4 => "Node",
         _ => "Unknown",
     }
 }
@@ -414,7 +414,7 @@ mod tests {
 
         let data = result.unwrap();
         let buildings = data["buildings"].as_array().unwrap();
-        // Player 0 has 1 CP + 1 Forge = 2 buildings
+        // Player 0 has 1 CP + 1 Node = 2 buildings
         assert_eq!(buildings.len(), 2, "Player 0 should have 2 buildings, got {}", buildings.len());
     }
 

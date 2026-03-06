@@ -17,7 +17,7 @@ export const THRALL_SCALE = 48 / 512;
 export const SENTINEL_SCALE = 56 / 512;
 export const HOVER_TANK_SCALE = 72 / 512;
 export const COMMAND_POST_SCALE = 96 / 512;
-export const FORGE_SCALE = 96 / 512;
+export const NODE_SCALE = 96 / 512;
 
 // ── Campaign Map Constants ──────────────────────────────────────────────
 /** Pixels per campaign map unit. Campaign map is 100x100 units → 2000x2000 px. */

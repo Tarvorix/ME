@@ -1,6 +1,6 @@
 use crate::types::SpriteId;
 
-/// Which production line a unit type uses at the Forge.
+/// Which production line a unit type uses at the Node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProductionLine {
     Infantry,
@@ -32,7 +32,7 @@ pub fn get_blueprint(sprite_id: SpriteId) -> &'static UnitBlueprint {
         SpriteId::Sentinel => &SENTINEL_BLUEPRINT,
         SpriteId::HoverTank => &HOVER_TANK_BLUEPRINT,
         SpriteId::CommandPost => &COMMAND_POST_BLUEPRINT,
-        SpriteId::Forge => &FORGE_BLUEPRINT,
+        SpriteId::Node => &NODE_BLUEPRINT,
         SpriteId::CapturePoint => &CAPTURE_POINT_BLUEPRINT,
     }
 }
@@ -42,7 +42,7 @@ pub fn production_line(sprite_id: SpriteId) -> Option<ProductionLine> {
     match sprite_id {
         SpriteId::Thrall | SpriteId::Sentinel => Some(ProductionLine::Infantry),
         SpriteId::HoverTank => Some(ProductionLine::Armor),
-        SpriteId::CommandPost | SpriteId::Forge | SpriteId::CapturePoint => None,
+        SpriteId::CommandPost | SpriteId::Node | SpriteId::CapturePoint => None,
     }
 }
 
@@ -55,7 +55,7 @@ static THRALL_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 3.0,
     vision_range: 8.0,
     energy_cost: 30,
-    build_time_secs: 5.0,
+    build_time_secs: 10.0,
     garrisoned_upkeep: 0.1,
     deployed_upkeep: 0.3,
     is_conscript: true,
@@ -72,7 +72,7 @@ static SENTINEL_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 2.0,
     vision_range: 8.0,
     energy_cost: 120,
-    build_time_secs: 15.0,
+    build_time_secs: 30.0,
     garrisoned_upkeep: 0.3,
     deployed_upkeep: 0.8,
     is_conscript: false,
@@ -89,7 +89,7 @@ static HOVER_TANK_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 2.5,
     vision_range: 10.0,
     energy_cost: 300,
-    build_time_secs: 30.0,
+    build_time_secs: 60.0,
     garrisoned_upkeep: 0.8,
     deployed_upkeep: 2.0,
     is_conscript: false,
@@ -114,9 +114,9 @@ static COMMAND_POST_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     scale: 96.0 / 512.0,
 };
 
-// ── Forge ───────────────────────────────────────────────────────────────────
+// ── Node ────────────────────────────────────────────────────────────────────
 // Campaign home base. Production hub. If destroyed = eliminated.
-static FORGE_BLUEPRINT: UnitBlueprint = UnitBlueprint {
+static NODE_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     max_hp: 2000.0,
     damage: 0.0,
     attack_range: 0.0,
@@ -159,7 +159,7 @@ mod tests {
             SpriteId::Sentinel,
             SpriteId::HoverTank,
             SpriteId::CommandPost,
-            SpriteId::Forge,
+            SpriteId::Node,
             SpriteId::CapturePoint,
         ] {
             let bp = get_blueprint(sprite_id);
@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(bp.attack_range, 5.0);
         assert_eq!(bp.speed, 3.0);
         assert_eq!(bp.energy_cost, 30);
-        assert_eq!(bp.build_time_secs, 5.0);
+        assert_eq!(bp.build_time_secs, 10.0);
         assert!(bp.is_conscript);
     }
 
@@ -210,8 +210,8 @@ mod tests {
     }
 
     #[test]
-    fn test_forge_blueprint() {
-        let bp = get_blueprint(SpriteId::Forge);
+    fn test_node_blueprint() {
+        let bp = get_blueprint(SpriteId::Node);
         assert_eq!(bp.max_hp, 2000.0);
         assert_eq!(bp.damage, 0.0);
         assert_eq!(bp.vision_range, 0.0);
@@ -223,6 +223,6 @@ mod tests {
         assert_eq!(production_line(SpriteId::Sentinel), Some(ProductionLine::Infantry));
         assert_eq!(production_line(SpriteId::HoverTank), Some(ProductionLine::Armor));
         assert_eq!(production_line(SpriteId::CommandPost), None);
-        assert_eq!(production_line(SpriteId::Forge), None);
+        assert_eq!(production_line(SpriteId::Node), None);
     }
 }

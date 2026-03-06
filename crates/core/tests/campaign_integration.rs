@@ -36,8 +36,8 @@ fn test_campaign_map_generation_is_valid() {
     for seed in 0..5u64 {
         let map = CampaignMap::generate(2, seed);
 
-        // Should have forges for both players
-        assert_eq!(map.player_forges.len(), 2);
+        // Should have nodes for both players
+        assert_eq!(map.player_nodes.len(), 2);
 
         // Should have mines and relics
         let mines = map.sites.iter().filter(|s| s.site_type == SiteType::MiningStation).count();
@@ -221,8 +221,8 @@ fn test_dispatch_delivery() {
     let mut map = CampaignMap::generate(2, 42);
     let mut queue = DispatchQueue::new();
 
-    // Find player 0's forge
-    let forge_site_id = map.player_forges[0];
+    // Find player 0's node
+    let node_site_id = map.player_nodes[0];
 
     // Find a neutral mine
     let mine = map.sites.iter().find(|s| {
@@ -232,7 +232,7 @@ fn test_dispatch_delivery() {
 
     // Dispatch some units
     let units = vec![GarrisonedUnit::new(0, 5)]; // 5 Thralls
-    let order_id = queue.dispatch_force(&mut map, 0, forge_site_id, mine_id, units);
+    let order_id = queue.dispatch_force(&mut map, 0, node_site_id, mine_id, units);
     assert!(order_id.is_some(), "Dispatch should succeed");
 
     assert_eq!(queue.orders.len(), 1);
@@ -260,26 +260,26 @@ fn test_dispatch_delivery() {
 #[test]
 fn test_garrison_operations() {
     let mut map = CampaignMap::generate(2, 42);
-    let forge_site_id = map.player_forges[0];
+    let node_site_id = map.player_nodes[0];
 
-    // Get forge index
-    let forge_idx = map.sites.iter().position(|s| s.id == forge_site_id).unwrap();
+    // Get node index
+    let node_idx = map.sites.iter().position(|s| s.id == node_site_id).unwrap();
 
     // Initial garrison should have starting forces
-    let initial_thrall_count: u32 = map.sites[forge_idx].garrison.iter()
+    let initial_thrall_count: u32 = map.sites[node_idx].garrison.iter()
         .filter(|g| g.unit_type == 0)
         .map(|g| g.count)
         .sum();
-    assert!(initial_thrall_count > 0, "Forge should start with Thralls");
+    assert!(initial_thrall_count > 0, "Node should start with Thralls");
 
     // Add more Thralls
     garrison::add_to_garrison(
-        &mut map.sites[forge_idx].garrison,
+        &mut map.sites[node_idx].garrison,
         GarrisonedUnit::new(0, 10),
     );
 
     // Merged count should be higher
-    let new_thrall_count: u32 = map.sites[forge_idx].garrison.iter()
+    let new_thrall_count: u32 = map.sites[node_idx].garrison.iter()
         .filter(|g| g.unit_type == 0)
         .map(|g| g.count)
         .sum();
@@ -287,7 +287,7 @@ fn test_garrison_operations() {
 
     // Remove some
     let removed = garrison::remove_from_garrison(
-        &mut map.sites[forge_idx].garrison,
+        &mut map.sites[node_idx].garrison,
         0, // unit_type = Thrall
         3,
     );
@@ -300,10 +300,10 @@ fn test_garrison_operations() {
 fn test_full_campaign_lifecycle() {
     let mut game = CampaignGame::new(2, 42);
 
-    // Player 0 starts with a forge
-    let forge_id = game.campaign_map.player_forges[0];
-    let forge = game.campaign_map.get_site(forge_id).unwrap();
-    assert_eq!(forge.owner, 0);
+    // Player 0 starts with a node
+    let node_id = game.campaign_map.player_nodes[0];
+    let node = game.campaign_map.get_site(node_id).unwrap();
+    assert_eq!(node.owner, 0);
 
     // Run economy ticks to accumulate energy
     for _ in 0..200 {

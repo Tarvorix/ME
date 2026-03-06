@@ -17,7 +17,7 @@ export enum SpriteType {
     Sentinel = 1,
     HoverTank = 2,
     CommandPost = 3,
-    Forge = 4,
+    Node = 4,
 }
 
 export enum Direction {

@@ -134,8 +134,8 @@ impl MatchRunner {
     }
 
     /// Check if the match has a winner.
-    /// A player wins when they are the only one with a surviving forge.
-    /// Returns None if multiple forges are still alive or game just started.
+    /// A player wins when they are the only one with a surviving node.
+    /// Returns None if multiple nodes are still alive or game just started.
     fn check_winner(&self) -> Option<u8> {
         // Don't check win condition in the first few ticks (let game initialize)
         if self.tick_count < 10 {
@@ -145,7 +145,7 @@ impl MatchRunner {
         let mut alive_players = Vec::new();
 
         for player in &self.players {
-            if self.game.check_forge_alive(player.player_id) {
+            if self.game.check_node_alive(player.player_id) {
                 alive_players.push(player.player_id);
             }
         }
@@ -153,7 +153,7 @@ impl MatchRunner {
         if alive_players.len() == 1 {
             Some(alive_players[0])
         } else if alive_players.is_empty() {
-            // All forges destroyed simultaneously — player 0 wins by default
+            // All nodes destroyed simultaneously — player 0 wins by default
             Some(0)
         } else {
             None
@@ -225,7 +225,7 @@ impl MatchRunner {
             // Check win condition
             if let Some(winner) = self.check_winner() {
                 info!(
-                    "Match '{}' ended at tick {}: player {} wins (forge destroyed)",
+                    "Match '{}' ended at tick {}: player {} wins (node destroyed)",
                     self.match_id.0, self.tick_count, winner
                 );
                 self.status = MatchStatus::Finished { winner };
@@ -236,7 +236,7 @@ impl MatchRunner {
                         if let Some(tx) = &player.state_tx {
                             let _ = tx.send(ServerMessage::End {
                                 winner,
-                                reason: "All enemy forges destroyed".into(),
+                                reason: "All enemy nodes destroyed".into(),
                             });
                         }
                     }
@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(runner.players.len(), 2);
 
         // Verify starting units were spawned
-        // Each player gets: 1 Command Post + 1 Forge + 3 Thralls = 5 entities
+        // Each player gets: 1 Command Post + 1 Node + 3 Thralls = 5 entities
         // Total: 10 entities for 2 players
         use machine_empire_core::components::UnitType;
         let ut_storage = runner.game.world.get_storage::<UnitType>().unwrap();
@@ -380,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_win_condition_one_forge_destroyed() {
+    fn test_win_condition_one_node_destroyed() {
         let config = test_config();
 
         let players = vec![
@@ -403,24 +403,24 @@ mod tests {
         // Advance past minimum tick threshold
         runner.tick_count = 20;
 
-        // Both forges alive — no winner
+        // Both nodes alive — no winner
         assert!(runner.check_winner().is_none());
 
-        // Kill player 1's forge by setting health to 0
+        // Kill player 1's node by setting health to 0
         use machine_empire_core::components::{UnitType, Health};
         use machine_empire_core::types::SpriteId;
 
         let ut_storage = runner.game.world.get_storage::<UnitType>().unwrap();
-        let mut forge_entity = None;
+        let mut node_entity = None;
         for (entity, ut) in ut_storage.iter() {
-            if ut.owner == 1 && ut.kind == SpriteId::Forge {
-                forge_entity = Some(entity);
+            if ut.owner == 1 && ut.kind == SpriteId::Node {
+                node_entity = Some(entity);
                 break;
             }
         }
 
-        let forge = forge_entity.expect("Player 1 should have a forge");
-        if let Some(h) = runner.game.world.get_component_mut::<Health>(forge) {
+        let node = node_entity.expect("Player 1 should have a node");
+        if let Some(h) = runner.game.world.get_component_mut::<Health>(node) {
             h.current = 0.0;
         }
 
@@ -449,21 +449,21 @@ mod tests {
 
         let mut runner = MatchRunner::new(MatchId("test-match".into()), config, players);
 
-        // Kill player 1's forge early
+        // Kill player 1's node early
         use machine_empire_core::components::{UnitType, Health};
         use machine_empire_core::types::SpriteId;
 
         let ut_storage = runner.game.world.get_storage::<UnitType>().unwrap();
-        let mut forge_entity = None;
+        let mut node_entity = None;
         for (entity, ut) in ut_storage.iter() {
-            if ut.owner == 1 && ut.kind == SpriteId::Forge {
-                forge_entity = Some(entity);
+            if ut.owner == 1 && ut.kind == SpriteId::Node {
+                node_entity = Some(entity);
                 break;
             }
         }
 
-        let forge = forge_entity.unwrap();
-        if let Some(h) = runner.game.world.get_component_mut::<Health>(forge) {
+        let node = node_entity.unwrap();
+        if let Some(h) = runner.game.world.get_component_mut::<Health>(node) {
             h.current = 0.0;
         }
 

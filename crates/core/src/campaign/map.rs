@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SiteType {
     /// Player home base. Production hub. If destroyed, player is eliminated.
-    Forge,
+    Node,
     /// Resource extraction site. Generates 8 energy/s when owned.
     MiningStation,
     /// Ancient technology cache. Generates 3 energy/s and gates research tiers.
@@ -96,8 +96,8 @@ impl CampaignSite {
 pub struct CampaignMap {
     /// All sites on the map.
     pub sites: Vec<CampaignSite>,
-    /// Player forge site IDs (index = player_id).
-    pub player_forges: Vec<u32>,
+    /// Player node site IDs (index = player_id).
+    pub player_nodes: Vec<u32>,
     /// Map width in campaign units.
     pub width: f32,
     /// Map height in campaign units.
@@ -108,7 +108,7 @@ impl CampaignMap {
     /// Generate a campaign map for the given player count.
     ///
     /// Layout:
-    /// - Forges at corners (one per player)
+    /// - Nodes at corners (one per player)
     /// - Mining stations spread in no-man's land between bases
     /// - Relic sites placed centrally
     pub fn generate(player_count: u8, seed: u64) -> Self {
@@ -116,11 +116,11 @@ impl CampaignMap {
         let height = 100.0;
         let margin = 10.0;
         let mut sites = Vec::new();
-        let mut player_forges = Vec::new();
+        let mut player_nodes = Vec::new();
         let mut next_id = 0u32;
 
-        // Place forges at corners
-        let forge_positions = match player_count {
+        // Place nodes at corners
+        let node_positions = match player_count {
             2 => vec![
                 (margin, margin),
                 (width - margin, height - margin),
@@ -138,14 +138,14 @@ impl CampaignMap {
             ],
         };
 
-        for (i, &(fx, fy)) in forge_positions.iter().enumerate() {
-            let mut site = CampaignSite::new(next_id, SiteType::Forge, fx, fy)
+        for (i, &(fx, fy)) in node_positions.iter().enumerate() {
+            let mut site = CampaignSite::new(next_id, SiteType::Node, fx, fy)
                 .with_owner(i as u8);
-            // Each forge starts with a default garrison: 10 Thralls + 3 Sentinels + 1 HoverTank
+            // Each node starts with a default garrison: 10 Thralls + 3 Sentinels + 1 HoverTank
             site.garrison.push(GarrisonedUnit::new(0, 10)); // Thralls
             site.garrison.push(GarrisonedUnit::new(1, 3));  // Sentinels
             site.garrison.push(GarrisonedUnit::new(2, 1));  // HoverTank
-            player_forges.push(next_id);
+            player_nodes.push(next_id);
             sites.push(site);
             next_id += 1;
         }
@@ -190,7 +190,7 @@ impl CampaignMap {
 
         CampaignMap {
             sites,
-            player_forges,
+            player_nodes,
             width,
             height,
         }
@@ -206,16 +206,16 @@ impl CampaignMap {
         self.sites.iter_mut().find(|s| s.id == site_id)
     }
 
-    /// Get the forge site for a player.
-    pub fn get_forge(&self, player_id: u8) -> Option<&CampaignSite> {
-        self.player_forges.get(player_id as usize)
+    /// Get the node site for a player.
+    pub fn get_node(&self, player_id: u8) -> Option<&CampaignSite> {
+        self.player_nodes.get(player_id as usize)
             .and_then(|&id| self.get_site(id))
     }
 
-    /// Get a mutable forge site for a player.
-    pub fn get_forge_mut(&mut self, player_id: u8) -> Option<&mut CampaignSite> {
-        let forge_id = self.player_forges.get(player_id as usize).copied();
-        forge_id.and_then(move |id| self.get_site_mut(id))
+    /// Get a mutable node site for a player.
+    pub fn get_node_mut(&mut self, player_id: u8) -> Option<&mut CampaignSite> {
+        let node_id = self.player_nodes.get(player_id as usize).copied();
+        node_id.and_then(move |id| self.get_site_mut(id))
     }
 
     /// Calculate Euclidean distance between two sites.
@@ -234,9 +234,9 @@ impl CampaignMap {
     }
 
     /// Calculate travel time between two sites (distance / speed).
-    /// Base travel speed is 5.0 campaign units per second.
+    /// Base travel speed is 2.5 campaign units per second.
     pub fn travel_time(&self, site_a: u32, site_b: u32) -> f32 {
-        const TRAVEL_SPEED: f32 = 5.0;
+        const TRAVEL_SPEED: f32 = 2.5;
         self.distance(site_a, site_b) / TRAVEL_SPEED
     }
 
@@ -354,53 +354,53 @@ mod tests {
     #[test]
     fn test_generate_2p_map() {
         let map = CampaignMap::generate(2, 42);
-        assert_eq!(map.player_forges.len(), 2);
+        assert_eq!(map.player_nodes.len(), 2);
         assert_eq!(map.width, 100.0);
         assert_eq!(map.height, 100.0);
 
-        // Should have 2 forges + 6 mines + 2 relics = 10 sites
+        // Should have 2 nodes + 6 mines + 2 relics = 10 sites
         assert_eq!(map.sites.len(), 10);
 
-        // Forges should be owned
-        let forge0 = map.get_site(map.player_forges[0]).unwrap();
-        assert_eq!(forge0.owner, 0);
-        assert_eq!(forge0.site_type, SiteType::Forge);
+        // Nodes should be owned
+        let node0 = map.get_site(map.player_nodes[0]).unwrap();
+        assert_eq!(node0.owner, 0);
+        assert_eq!(node0.site_type, SiteType::Node);
 
-        let forge1 = map.get_site(map.player_forges[1]).unwrap();
-        assert_eq!(forge1.owner, 1);
-        assert_eq!(forge1.site_type, SiteType::Forge);
+        let node1 = map.get_site(map.player_nodes[1]).unwrap();
+        assert_eq!(node1.owner, 1);
+        assert_eq!(node1.site_type, SiteType::Node);
     }
 
     #[test]
     fn test_generate_4p_map() {
         let map = CampaignMap::generate(4, 42);
-        assert_eq!(map.player_forges.len(), 4);
+        assert_eq!(map.player_nodes.len(), 4);
 
-        // Should have 4 forges + 8 mines + 3 relics = 15 sites
+        // Should have 4 nodes + 8 mines + 3 relics = 15 sites
         assert_eq!(map.sites.len(), 15);
 
-        // All forges should be owned by different players
+        // All nodes should be owned by different players
         for i in 0..4 {
-            let forge = map.get_site(map.player_forges[i]).unwrap();
-            assert_eq!(forge.owner, i as u8);
-            assert_eq!(forge.site_type, SiteType::Forge);
+            let node = map.get_site(map.player_nodes[i]).unwrap();
+            assert_eq!(node.owner, i as u8);
+            assert_eq!(node.site_type, SiteType::Node);
         }
     }
 
     #[test]
-    fn test_forges_at_corners() {
+    fn test_nodes_at_corners() {
         let map = CampaignMap::generate(2, 42);
 
-        let forge0 = map.get_site(map.player_forges[0]).unwrap();
-        let forge1 = map.get_site(map.player_forges[1]).unwrap();
+        let node0 = map.get_site(map.player_nodes[0]).unwrap();
+        let node1 = map.get_site(map.player_nodes[1]).unwrap();
 
-        // Forge 0 near bottom-left corner
-        assert!(forge0.x < 50.0, "Forge 0 x={} should be in left half", forge0.x);
-        assert!(forge0.y < 50.0, "Forge 0 y={} should be in bottom half", forge0.y);
+        // Node 0 near bottom-left corner
+        assert!(node0.x < 50.0, "Node 0 x={} should be in left half", node0.x);
+        assert!(node0.y < 50.0, "Node 0 y={} should be in bottom half", node0.y);
 
-        // Forge 1 near top-right corner
-        assert!(forge1.x > 50.0, "Forge 1 x={} should be in right half", forge1.x);
-        assert!(forge1.y > 50.0, "Forge 1 y={} should be in top half", forge1.y);
+        // Node 1 near top-right corner
+        assert!(node1.x > 50.0, "Node 1 x={} should be in right half", node1.x);
+        assert!(node1.y > 50.0, "Node 1 y={} should be in top half", node1.y);
     }
 
     #[test]
@@ -463,8 +463,8 @@ mod tests {
         let dist = map.distance(site_a, site_b);
         let time = map.travel_time(site_a, site_b);
 
-        // travel_time = distance / 5.0
-        assert!((time - dist / 5.0).abs() < 0.001,
+        // travel_time = distance / 2.5
+        assert!((time - dist / 2.5).abs() < 0.001,
             "Travel time should be distance/speed: time={}, dist={}", time, dist);
     }
 
@@ -476,7 +476,7 @@ mod tests {
         let deserialized: CampaignMap = serde_json::from_str(&serialized).expect("deserialize");
 
         assert_eq!(deserialized.sites.len(), map.sites.len());
-        assert_eq!(deserialized.player_forges.len(), map.player_forges.len());
+        assert_eq!(deserialized.player_nodes.len(), map.player_nodes.len());
         assert_eq!(deserialized.width, map.width);
         assert_eq!(deserialized.height, map.height);
 
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn test_garrison_tracking() {
-        let mut site = CampaignSite::new(0, SiteType::Forge, 10.0, 10.0);
+        let mut site = CampaignSite::new(0, SiteType::Node, 10.0, 10.0);
         assert_eq!(site.garrison_count(), 0);
 
         site.garrison.push(GarrisonedUnit::new(0, 10)); // 10 Thralls
@@ -509,13 +509,13 @@ mod tests {
     fn test_initial_ownership() {
         let map = CampaignMap::generate(2, 42);
 
-        // Forges should be owned
+        // Nodes should be owned
         let owned = map.sites_owned_by(0);
-        assert_eq!(owned.len(), 1, "Player 0 should own 1 site (forge)");
-        assert_eq!(owned[0].site_type, SiteType::Forge);
+        assert_eq!(owned.len(), 1, "Player 0 should own 1 site (node)");
+        assert_eq!(owned[0].site_type, SiteType::Node);
 
         let owned1 = map.sites_owned_by(1);
-        assert_eq!(owned1.len(), 1, "Player 1 should own 1 site (forge)");
+        assert_eq!(owned1.len(), 1, "Player 1 should own 1 site (node)");
 
         // All other sites should be neutral
         let neutrals = map.neutral_sites();
@@ -526,7 +526,7 @@ mod tests {
     fn test_sites_spread() {
         let map = CampaignMap::generate(2, 42);
 
-        // All non-forge sites should be spread apart (at least 8 units)
+        // All non-node sites should be spread apart (at least 8 units)
         for i in 0..map.sites.len() {
             for j in (i + 1)..map.sites.len() {
                 let dist = map.distance(map.sites[i].id, map.sites[j].id);
@@ -549,31 +549,31 @@ mod tests {
     }
 
     #[test]
-    fn test_forge_starting_garrison() {
+    fn test_node_starting_garrison() {
         let map = CampaignMap::generate(2, 42);
 
-        let forge = map.get_forge(0).unwrap();
-        assert_eq!(forge.garrison.len(), 3, "Forge should have 3 garrison entries");
-        assert_eq!(forge.garrison_count(), 14, "Forge should have 14 total units (10T + 3S + 1HT)");
+        let node = map.get_node(0).unwrap();
+        assert_eq!(node.garrison.len(), 3, "Node should have 3 garrison entries");
+        assert_eq!(node.garrison_count(), 14, "Node should have 14 total units (10T + 3S + 1HT)");
 
         // Check unit types
-        assert_eq!(forge.garrison[0].unit_type, 0); // Thralls
-        assert_eq!(forge.garrison[0].count, 10);
-        assert_eq!(forge.garrison[1].unit_type, 1); // Sentinels
-        assert_eq!(forge.garrison[1].count, 3);
-        assert_eq!(forge.garrison[2].unit_type, 2); // HoverTank
-        assert_eq!(forge.garrison[2].count, 1);
+        assert_eq!(node.garrison[0].unit_type, 0); // Thralls
+        assert_eq!(node.garrison[0].count, 10);
+        assert_eq!(node.garrison[1].unit_type, 1); // Sentinels
+        assert_eq!(node.garrison[1].count, 3);
+        assert_eq!(node.garrison[2].unit_type, 2); // HoverTank
+        assert_eq!(node.garrison[2].count, 1);
     }
 
     #[test]
-    fn test_get_forge() {
+    fn test_get_node() {
         let map = CampaignMap::generate(2, 42);
 
-        let forge0 = map.get_forge(0);
-        assert!(forge0.is_some());
-        assert_eq!(forge0.unwrap().owner, 0);
+        let node0 = map.get_node(0);
+        assert!(node0.is_some());
+        assert_eq!(node0.unwrap().owner, 0);
 
-        let forge_none = map.get_forge(5); // invalid player
-        assert!(forge_none.is_none());
+        let node_none = map.get_node(5); // invalid player
+        assert!(node_none.is_none());
     }
 }

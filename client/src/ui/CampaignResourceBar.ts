@@ -9,7 +9,7 @@ export interface CampaignResourceBarProps {
     tickCount: number;
     onTogglePause: () => void;
     onOpenResearch: () => void;
-    onSelectForge: () => void;
+    onSelectNode: () => void;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface CampaignResourceBarProps {
  * expenses, net rate, strain meter, research/production buttons, and pause control.
  * Renders as content within the top bar grid zone (no position:fixed).
  */
-export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause, onOpenResearch, onSelectForge }: CampaignResourceBarProps) {
+export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause, onOpenResearch, onSelectNode }: CampaignResourceBarProps) {
     const net = economy.netRate;
     const netStr = net >= 0 ? `+${net.toFixed(1)}` : net.toFixed(1);
     const netColor = net >= 0 ? '#44cc44' : '#cc4444';
@@ -41,8 +41,8 @@ export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause,
         <div style=${CAMPAIGN_STYLES.resourceGroup}>
             <span style=${HUD_STYLES.resourceLabel}>Income</span>
             <span style=${'font-size: 11px; color: #44cc44'}>${economy.totalIncome.toFixed(1)}/s</span>
-            <span style="font-size: 10px; color: #666" title="Forge + Mines + Relics">
-                (${economy.forgeIncome.toFixed(0)}+${economy.mineIncome.toFixed(0)}+${economy.relicIncome.toFixed(0)})
+            <span style="font-size: 10px; color: #666" title="Node + Mines + Relics">
+                (${economy.nodeIncome.toFixed(0)}+${economy.mineIncome.toFixed(0)}+${economy.relicIncome.toFixed(0)})
             </span>
         </div>
 
@@ -85,10 +85,10 @@ export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause,
         <!-- Production Button -->
         <button
             style=${CAMPAIGN_STYLES.topBarBtn}
-            onClick=${onSelectForge}
+            onClick=${onSelectNode}
             onMouseOver=${(e: Event) => (e.currentTarget as HTMLElement).style.background = 'rgba(50,70,100,0.8)'}
             onMouseOut=${(e: Event) => (e.currentTarget as HTMLElement).style.background = 'rgba(40,50,70,0.7)'}
-            title="Select Forge (show production)"
+            title="Select Node (show production)"
         >PRODUCTION</button>
 
         <!-- Time Display -->
