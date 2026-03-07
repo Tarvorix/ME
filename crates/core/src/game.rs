@@ -9,6 +9,7 @@ use crate::systems;
 use crate::systems::fog::FogGrid;
 use crate::systems::production::Productions;
 use crate::systems::resource::{Economies, UIStateBuffer};
+use crate::systems::reinforcement::{PendingReinforcements, ReinforcementAvailability};
 use crate::ai::influence_map::InfluenceGrid;
 use crate::ai::tactical::{BtTemplates, AiBlackboard};
 use crate::ai::player::{AiPlayers, AiPlayer, AiDifficulty};
@@ -80,6 +81,8 @@ impl Game {
         world.insert_resource(BtTemplates::new());
         world.insert_resource(AiBlackboard::new(config.player_count));
         world.insert_resource(AiPlayers::new());
+        world.insert_resource(PendingReinforcements::new(config.player_count));
+        world.insert_resource(ReinforcementAvailability::new(config.player_count));
 
         // Register systems in execution order
         let mut systems = SystemRunner::new();
@@ -93,6 +96,7 @@ impl Game {
         systems.add_system("ai_influence", crate::ai::tactical::ai_influence_update_system);
         systems.add_system("ai_tactical", crate::ai::tactical::ai_tactical_system);
         systems.add_system("ai_strategic", crate::ai::player::ai_strategic_system);
+        systems.add_system("reinforcement", systems::reinforcement_system);
         systems.add_system("production", systems::production_system);
         systems.add_system("resource", systems::resource_system);
         systems.add_system("animation", systems::animation_system);
@@ -127,6 +131,7 @@ impl Game {
         }
         crate::systems::resource::write_ui_state(&mut self.world);
         crate::systems::production::write_production_ui(&mut self.world);
+        crate::systems::reinforcement::write_reinforcement_ui(&mut self.world);
     }
 
     /// Tick with profiling — returns timing data for each system.
@@ -154,6 +159,7 @@ impl Game {
         }
         crate::systems::resource::write_ui_state(&mut self.world);
         crate::systems::production::write_production_ui(&mut self.world);
+        crate::systems::reinforcement::write_reinforcement_ui(&mut self.world);
 
         let total_us = total_start.elapsed().as_micros() as u64;
 
@@ -845,5 +851,6 @@ mod tests {
         let _research = Command::CampaignResearch { player: 0, tech_id: 0 };
         let _dispatch = Command::CampaignDispatch { player: 0, source_site: 0, target_site: 1, units: vec![(0, 5)] };
         let _withdraw = Command::CampaignWithdraw { player: 0, site_id: 0 };
+        let _reinforce = Command::RequestReinforcement { player: 0, unit_type: 0, count: 5 };
     }
 }

@@ -13,12 +13,12 @@ import type { CampaignBridge } from './CampaignBridge';
  */
 export class CampaignBattleAdapter {
     private campaignBridge: CampaignBridge;
-    private battleIndex: number;
+    private battleSiteId: number;
     private memory: WebAssembly.Memory;
 
-    constructor(campaignBridge: CampaignBridge, battleIndex: number, memory: WebAssembly.Memory) {
+    constructor(campaignBridge: CampaignBridge, battleSiteId: number, memory: WebAssembly.Memory) {
         this.campaignBridge = campaignBridge;
-        this.battleIndex = battleIndex;
+        this.battleSiteId = battleSiteId;
         this.memory = memory;
     }
 
@@ -38,46 +38,65 @@ export class CampaignBattleAdapter {
     // ── Render Buffer ───────────────────────────────────────────────────
 
     getRenderBuffer(): DataView {
-        const buf = this.campaignBridge.getBattleRenderBuffer(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex < 0) {
+            return new DataView(new ArrayBuffer(0));
+        }
+        const buf = this.campaignBridge.getBattleRenderBuffer(battleIndex);
         if (buf) return buf;
         // Return empty DataView if no buffer available
         return new DataView(new ArrayBuffer(0));
     }
 
     getRenderCount(): number {
-        return this.campaignBridge.getBattleRenderCount(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0 ? this.campaignBridge.getBattleRenderCount(battleIndex) : 0;
     }
 
     // ── Map ─────────────────────────────────────────────────────────────
 
     getMapTile(x: number, y: number): { terrain: number; variant: number } {
-        return this.campaignBridge.getBattleMapTile(this.battleIndex, x, y);
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0
+            ? this.campaignBridge.getBattleMapTile(battleIndex, x, y)
+            : { terrain: 0, variant: 0 };
     }
 
     getMapWidth(): number {
-        return this.campaignBridge.getBattleMapSize(this.battleIndex).width;
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0 ? this.campaignBridge.getBattleMapSize(battleIndex).width : 0;
     }
 
     getMapHeight(): number {
-        return this.campaignBridge.getBattleMapSize(this.battleIndex).height;
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0 ? this.campaignBridge.getBattleMapSize(battleIndex).height : 0;
     }
 
     // ── Fog of War ──────────────────────────────────────────────────────
 
     getFogBuffer(player: number): Uint8Array {
-        const buf = this.campaignBridge.getBattleFogBuffer(this.battleIndex, player);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex < 0) {
+            return new Uint8Array(0);
+        }
+        const buf = this.campaignBridge.getBattleFogBuffer(battleIndex, player);
         if (buf) return buf;
         return new Uint8Array(0);
     }
 
     getFogBufferLen(): number {
-        return this.campaignBridge.getBattleFogLen(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0 ? this.campaignBridge.getBattleFogLen(battleIndex) : 0;
     }
 
     // ── UI State ────────────────────────────────────────────────────────
 
     getUIState(): DataView {
-        const state = this.campaignBridge.getBattleUIState(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex < 0) {
+            return new DataView(new ArrayBuffer(256));
+        }
+        const state = this.campaignBridge.getBattleUIState(battleIndex);
         if (state) return state;
         return new DataView(new ArrayBuffer(256));
     }
@@ -85,39 +104,62 @@ export class CampaignBattleAdapter {
     // ── Events ──────────────────────────────────────────────────────────
 
     getEventBuffer(): DataView {
-        const buf = this.campaignBridge.getBattleEventBuffer(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex < 0) {
+            return new DataView(new ArrayBuffer(0));
+        }
+        const buf = this.campaignBridge.getBattleEventBuffer(battleIndex);
         if (buf) return buf;
         return new DataView(new ArrayBuffer(0));
     }
 
     getEventCount(): number {
-        return this.campaignBridge.getBattleEventCount(this.battleIndex);
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0 ? this.campaignBridge.getBattleEventCount(battleIndex) : 0;
     }
 
     // ── Unit Commands ───────────────────────────────────────────────────
 
     cmdMoveUnit(entityId: number, targetX: number, targetY: number): void {
-        this.campaignBridge.battleCmdMove(this.battleIndex, entityId, targetX, targetY);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdMove(battleIndex, entityId, targetX, targetY);
+        }
     }
 
     cmdMoveUnits(entityIds: number[], targetX: number, targetY: number): void {
-        this.campaignBridge.battleCmdMoveUnits(this.battleIndex, entityIds, targetX, targetY);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdMoveUnits(battleIndex, entityIds, targetX, targetY);
+        }
     }
 
     cmdStopUnit(entityId: number): void {
-        this.campaignBridge.battleCmdStop(this.battleIndex, entityId);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdStop(battleIndex, entityId);
+        }
     }
 
     cmdAttack(entityId: number, targetId: number): void {
-        this.campaignBridge.battleCmdAttack(this.battleIndex, entityId, targetId);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdAttack(battleIndex, entityId, targetId);
+        }
     }
 
     cmdAttackMove(entityId: number, targetX: number, targetY: number): void {
-        this.campaignBridge.battleCmdAttackMove(this.battleIndex, entityId, targetX, targetY);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdAttackMove(battleIndex, entityId, targetX, targetY);
+        }
     }
 
     cmdAttackTarget(entityIds: number[], targetId: number): void {
-        this.campaignBridge.battleCmdAttackTarget(this.battleIndex, entityIds, targetId);
+        const battleIndex = this.resolveBattleIndex();
+        if (battleIndex >= 0) {
+            this.campaignBridge.battleCmdAttackTarget(battleIndex, entityIds, targetId);
+        }
     }
 
     // ── Production (no-ops in campaign battle context) ───────────────────
@@ -134,6 +176,16 @@ export class CampaignBattleAdapter {
         /* no-op */
     }
 
+    // ── Reinforcements ────────────────────────────────────────────────────
+
+    /** Request reinforcements from the campaign Node garrison. */
+    cmdReinforce(player: number, unitType: number, count: number): boolean {
+        const battleIndex = this.resolveBattleIndex();
+        return battleIndex >= 0
+            ? this.campaignBridge.battleCmdReinforce(battleIndex, player, unitType, count)
+            : false;
+    }
+
     // ── Campaign Bridge (not part of GameBridge interface) ───────────────
 
     getCampaignBridge(): CampaignBridge {
@@ -142,5 +194,11 @@ export class CampaignBattleAdapter {
 
     getMemory(): WebAssembly.Memory {
         return this.memory;
+    }
+
+    private resolveBattleIndex(): number {
+        return this.campaignBridge.getActiveBattles().findIndex(
+            (battle) => battle.siteId === this.battleSiteId,
+        );
     }
 }

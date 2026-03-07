@@ -25,7 +25,7 @@ pub struct CampaignEconomy {
 impl CampaignEconomy {
     pub fn new() -> Self {
         CampaignEconomy {
-            energy_bank: 500.0, // Starting energy
+            energy_bank: 300.0, // Starting energy
             node_income: 5.0,
             mine_income: 0.0,
             relic_income: 0.0,
@@ -51,6 +51,11 @@ impl CampaignEconomy {
     /// Net income rate (income - expenses).
     pub fn net_rate(&self) -> f32 {
         self.total_income() - self.total_expenses()
+    }
+
+    /// Add conscription strain (capped at 100).
+    pub fn add_conscription_strain(&mut self, amount: f32) {
+        self.strain = (self.strain + amount).min(100.0);
     }
 }
 

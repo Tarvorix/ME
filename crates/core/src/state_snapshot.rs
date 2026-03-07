@@ -392,7 +392,7 @@ mod tests {
         let game = test_game();
 
         let econ = snapshot_economy(&game.world, 0);
-        assert_eq!(econ.energy_bank, 500.0);
+        assert_eq!(econ.energy_bank, 300.0);
         assert!(econ.income > 0.0); // base_income = 5.0
         assert_eq!(econ.strain, 0.0);
         assert_eq!(econ.strain_income_penalty, 0.0);

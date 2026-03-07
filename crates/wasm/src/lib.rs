@@ -1108,3 +1108,16 @@ pub fn campaign_battle_cmd_stop(battle_index: u32, entity_id: u32) {
         });
     }
 }
+
+/// Request reinforcements for a player in a campaign battle.
+/// Units are drawn from the player's Node garrison.
+/// Returns 1 on success, 0 on failure.
+#[wasm_bindgen]
+pub fn campaign_battle_cmd_reinforce(battle_index: u32, player: u8, unit_type: u16, count: u32) -> u32 {
+    let cg = campaign_mut();
+    if cg.request_reinforcement(battle_index as usize, player, unit_type, count) {
+        1
+    } else {
+        0
+    }
+}

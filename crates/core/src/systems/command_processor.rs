@@ -52,8 +52,9 @@ pub fn command_processor_system(world: &mut World) {
             }
             Command::CampaignResearch { .. } |
             Command::CampaignDispatch { .. } |
-            Command::CampaignWithdraw { .. } => {
-                // Campaign commands are handled at the CampaignGame level, not the RTS level
+            Command::CampaignWithdraw { .. } |
+            Command::RequestReinforcement { .. } => {
+                // Campaign commands and reinforcements are handled at the CampaignGame level, not the RTS level
             }
         }
     }
@@ -130,9 +131,22 @@ fn process_attack(world: &mut World, unit_ids: &[u32], target_id: u32) {
         return;
     }
 
+    let target_owner = match world.get_component::<crate::components::UnitType>(target) {
+        Some(ut) => ut.owner,
+        None => return,
+    };
+
     for &raw_id in unit_ids {
         let entity = Entity::from_raw(raw_id);
         if !world.is_alive(entity) {
+            continue;
+        }
+
+        let attacker_owner = match world.get_component::<crate::components::UnitType>(entity) {
+            Some(ut) => ut.owner,
+            None => continue,
+        };
+        if attacker_owner == target_owner {
             continue;
         }
 

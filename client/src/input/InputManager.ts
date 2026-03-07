@@ -5,7 +5,7 @@ import { TouchHandler } from './TouchHandler';
 import type { CameraController } from '../render/CameraController';
 import type { SpritePool } from '../render/SpritePool';
 import type { GameBridge } from '../bridge/GameBridge';
-import { screenToTile } from '../render/IsoUtils';
+import { battleWorldToTile } from '../render/BattleViewProjection';
 
 /**
  * Handles user input: selection (single, multi, box), movement, touch gestures.
@@ -39,7 +39,7 @@ export class InputManager {
                 const { wx, wy } = this.camera.screenToWorld(sx, sy);
                 const entityId = this.spritePool.getEntityAtScreen(wx, wy);
                 this.selectedEntities.clear();
-                if (entityId !== null) {
+                if (entityId !== null && this.isControllableEntity(entityId)) {
                     this.selectedEntities.add(entityId);
                 }
             },
@@ -53,7 +53,7 @@ export class InputManager {
                 this.selectionBox.move(wx, wy);
             },
             onDragEnd: (_sx, _sy) => {
-                const ids = this.selectionBox.end();
+                const ids = this.selectionBox.end().filter((id) => this.isControllableEntity(id));
                 if (ids.length > 0) {
                     this.selectedEntities.clear();
                     for (const id of ids) {
@@ -98,14 +98,14 @@ export class InputManager {
             const { wx, wy } = this.camera.screenToWorld(e.clientX, e.clientY);
             const entityId = this.spritePool.getEntityAtScreen(wx, wy);
 
-            if (e.shiftKey && entityId !== null) {
+            if (e.shiftKey && entityId !== null && this.isControllableEntity(entityId)) {
                 // Shift+click: toggle entity in selection
                 if (this.selectedEntities.has(entityId)) {
                     this.selectedEntities.delete(entityId);
                 } else {
                     this.selectedEntities.add(entityId);
                 }
-            } else if (entityId !== null) {
+            } else if (entityId !== null && this.isControllableEntity(entityId)) {
                 // Single click on entity: select it
                 this.selectedEntities.clear();
                 this.selectedEntities.add(entityId);
@@ -133,7 +133,7 @@ export class InputManager {
             this.canvas.removeEventListener('pointermove', onMove);
             this.canvas.removeEventListener('pointerup', onUp);
 
-            const ids = this.selectionBox.end();
+            const ids = this.selectionBox.end().filter((id) => this.isControllableEntity(id));
             if (ids.length > 0) {
                 this.selectedEntities.clear();
                 for (const id of ids) {
@@ -158,13 +158,14 @@ export class InputManager {
 
         // Check if right-clicking on an enemy unit — if so, attack instead of move
         const targetEntityId = this.spritePool.getEntityAtScreen(wx, wy);
-        if (targetEntityId !== null && !this.selectedEntities.has(targetEntityId)) {
+        const targetOwner = targetEntityId !== null ? this.spritePool.getEntityOwner(targetEntityId) : null;
+        if (targetEntityId !== null && targetOwner !== null && targetOwner !== 0) {
             // Right-clicked an entity that is NOT in our selection — attack it
             this.bridge.cmdAttackTarget(ids, targetEntityId);
             return;
         }
 
-        const { tx, ty } = screenToTile(wx, wy);
+        const { tx, ty } = battleWorldToTile(wx, wy);
 
         const mapW = this.bridge.getMapWidth();
         const mapH = this.bridge.getMapHeight();
@@ -172,11 +173,71 @@ export class InputManager {
         const tileY = Math.floor(ty);
 
         if (tileX >= 0 && tileX < mapW && tileY >= 0 && tileY < mapH) {
-            // Send move command for all selected entities
-            for (const entityId of ids) {
-                this.bridge.cmdMoveUnit(entityId, tx, ty);
+            const targets = this.getFormationTargets(ids, tx, ty, mapW, mapH);
+            for (const target of targets) {
+                this.bridge.cmdMoveUnit(target.entityId, target.tx, target.ty);
             }
             this.moveIndicator.show(tx, ty);
         }
+    }
+
+    private getFormationTargets(
+        entityIds: number[],
+        targetTx: number,
+        targetTy: number,
+        mapW: number,
+        mapH: number,
+    ): Array<{ entityId: number; tx: number; ty: number }> {
+        if (entityIds.length <= 1) {
+            return [{ entityId: entityIds[0], tx: targetTx, ty: targetTy }];
+        }
+
+        const units = entityIds.map((entityId) => {
+            const sprite = this.spritePool.getSprite(entityId);
+            if (sprite) {
+                const { tx, ty } = battleWorldToTile(sprite.x, sprite.y);
+                return { entityId, tx, ty };
+            }
+            return { entityId, tx: targetTx, ty: targetTy };
+        });
+
+        units.sort((a, b) => (a.ty - b.ty) || (a.tx - b.tx));
+
+        const cols = Math.ceil(Math.sqrt(entityIds.length));
+        const rows = Math.ceil(entityIds.length / cols);
+        const spacing = 1.1;
+        const slots: Array<{ tx: number; ty: number }> = [];
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                if (slots.length >= entityIds.length) break;
+                slots.push({
+                    tx: this.clampTile(
+                        targetTx + (col - (cols - 1) / 2) * spacing,
+                        mapW,
+                    ),
+                    ty: this.clampTile(
+                        targetTy + (row - (rows - 1) / 2) * spacing,
+                        mapH,
+                    ),
+                });
+            }
+        }
+
+        slots.sort((a, b) => (a.ty - b.ty) || (a.tx - b.tx));
+
+        return units.map((unit, index) => ({
+            entityId: unit.entityId,
+            tx: slots[index].tx,
+            ty: slots[index].ty,
+        }));
+    }
+
+    private clampTile(value: number, size: number): number {
+        return Math.max(0.5, Math.min(size - 0.5, value));
+    }
+
+    private isControllableEntity(entityId: number): boolean {
+        return this.spritePool.getEntityOwner(entityId) === 0;
     }
 }

@@ -100,8 +100,8 @@ fn test_ai_produces_units() {
     let initial_combat_p0 = count_player_combat_units(&game, 0);
     let initial_combat_p1 = count_player_combat_units(&game, 1);
 
-    // Run for 400 ticks (20 seconds — enough for production with 10s Thrall build time)
-    for _ in 0..400 {
+    // Run for 600 ticks (30 seconds — enough for production with 15s Thrall build time)
+    for _ in 0..600 {
         game.tick(50.0);
     }
 

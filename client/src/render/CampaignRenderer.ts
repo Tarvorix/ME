@@ -31,6 +31,7 @@ export class CampaignRenderer {
     private camera!: CameraController;
     private bridge!: CampaignBridge;
     private connectionsDrawn = false;
+    private savedCameraZoom = 1.0;
 
     // Selection state (managed by CampaignInputManager in Chunk 50)
     private _selectedSiteId = -1;
@@ -91,6 +92,7 @@ export class CampaignRenderer {
         const fitZoom = Math.min(screenW / this.mapPixelWidth, screenH / this.mapPixelHeight) * 0.85;
         const initialZoom = Math.max(0.25, Math.min(1.0, fitZoom));
         this.camera.zoomAt(initialZoom - 1.0, screenW / 2, screenH / 2);
+        this.savedCameraZoom = initialZoom;
 
         // Center view on the campaign map center
         const centerX = this.mapPixelWidth / 2;
@@ -210,6 +212,7 @@ export class CampaignRenderer {
      * Call when entering battle view to prevent competing camera controllers.
      */
     disableCamera(): void {
+        this.savedCameraZoom = this.camera.getZoom();
         this.camera.destroy();
     }
 
@@ -218,7 +221,9 @@ export class CampaignRenderer {
      * Call when returning from battle view to campaign map.
      */
     enableCamera(): void {
-        this.camera = new CameraController(this.worldContainer, this.app.canvas);
+        this.camera = new CameraController(this.worldContainer, this.app.canvas, {
+            initialZoom: this.savedCameraZoom,
+        });
     }
 
     /**

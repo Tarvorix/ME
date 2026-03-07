@@ -11,15 +11,43 @@ import type { CampaignHUD } from '../ui/CampaignHUD';
  *  - Middle-mouse drag: pan camera (handled by CameraController)
  *  - Scroll wheel: zoom camera (handled by CameraController)
  *
+ * Touch (mobile):
+ *  - Single-finger tap: select/deselect site
+ *  - Single-finger drag: pan camera
+ *  - Two-finger pinch: zoom camera
+ *  - Long press on site: open dispatch (like right-click)
+ *
  * Keyboard:
  *  - Space: pause/unpause campaign
  *  - R: toggle research panel
  *  - Escape: close overlays, deselect
  */
+
+const TOUCH_TAP_MAX_DIST = 12; // pixels
+const TOUCH_TAP_MAX_TIME = 300; // ms
+const TOUCH_LONG_PRESS_TIME = 500; // ms
+const TOUCH_DRAG_THRESHOLD = 8; // pixels before drag starts
+
+interface TrackedTouch {
+    id: number;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    startTime: number;
+}
+
 export class CampaignInputManager {
     private canvas: HTMLCanvasElement;
     private renderer: CampaignRenderer;
     private hud: CampaignHUD;
+
+    // Touch state
+    private touches = new Map<number, TrackedTouch>();
+    private touchDragging = false;
+    private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    private prevPinchDist = 0;
+    private prevPanCenter = { x: 0, y: 0 };
 
     constructor(
         canvas: HTMLCanvasElement,
@@ -41,6 +69,12 @@ export class CampaignInputManager {
 
         // Keyboard input
         window.addEventListener('keydown', this.onKeyDown);
+
+        // Touch input (separate from pointer events for gesture recognition)
+        this.canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
+        this.canvas.addEventListener('touchend', this.onTouchEnd, { passive: false });
+        this.canvas.addEventListener('touchcancel', this.onTouchEnd, { passive: false });
     }
 
     /** Update per-frame visuals (hover highlighting). */
@@ -54,6 +88,11 @@ export class CampaignInputManager {
         this.canvas.removeEventListener('pointermove', this.onPointerMove);
         this.canvas.removeEventListener('contextmenu', this.onContextMenu);
         window.removeEventListener('keydown', this.onKeyDown);
+        this.canvas.removeEventListener('touchstart', this.onTouchStart);
+        this.canvas.removeEventListener('touchmove', this.onTouchMove);
+        this.canvas.removeEventListener('touchend', this.onTouchEnd);
+        this.canvas.removeEventListener('touchcancel', this.onTouchEnd);
+        this.clearLongPress();
     }
 
     // ── Mouse Input ─────────────────────────────────────────────────────
@@ -63,7 +102,7 @@ export class CampaignInputManager {
     };
 
     private onPointerDown = (e: PointerEvent): void => {
-        // Ignore touch events (could add touch support later)
+        // Touch events are handled by the touch* listeners for gesture recognition
         if (e.pointerType === 'touch') return;
         // Ignore middle-mouse (handled by CameraController for pan)
         if (e.button === 1) return;
@@ -165,6 +204,156 @@ export class CampaignInputManager {
                     this.renderer.selectedSiteId = -1;
                 }
                 break;
+        }
+    };
+
+    // ── Touch Input ──────────────────────────────────────────────────────
+
+    private clearLongPress(): void {
+        if (this.longPressTimer !== null) {
+            clearTimeout(this.longPressTimer);
+            this.longPressTimer = null;
+        }
+    }
+
+    private touchDistance(t1: TrackedTouch, t2: TrackedTouch): number {
+        const dx = t1.currentX - t2.currentX;
+        const dy = t1.currentY - t2.currentY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private touchCenter(t1: TrackedTouch, t2: TrackedTouch): { x: number; y: number } {
+        return {
+            x: (t1.currentX + t2.currentX) / 2,
+            y: (t1.currentY + t2.currentY) / 2,
+        };
+    }
+
+    private onTouchStart = (e: TouchEvent): void => {
+        e.preventDefault();
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            this.touches.set(t.identifier, {
+                id: t.identifier,
+                startX: t.clientX,
+                startY: t.clientY,
+                currentX: t.clientX,
+                currentY: t.clientY,
+                startTime: performance.now(),
+            });
+        }
+
+        if (this.touches.size === 1) {
+            // Single touch — start long press timer for dispatch
+            const touch = Array.from(this.touches.values())[0];
+            this.clearLongPress();
+            this.longPressTimer = setTimeout(() => {
+                // Long press = right-click equivalent (dispatch)
+                this.handleRightClick(touch.currentX, touch.currentY);
+                this.longPressTimer = null;
+            }, TOUCH_LONG_PRESS_TIME);
+        } else if (this.touches.size === 2) {
+            // Two fingers — initialize pinch/pan
+            this.clearLongPress();
+            this.touchDragging = false;
+            const [t1, t2] = Array.from(this.touches.values());
+            this.prevPinchDist = this.touchDistance(t1, t2);
+            this.prevPanCenter = this.touchCenter(t1, t2);
+        }
+    };
+
+    private onTouchMove = (e: TouchEvent): void => {
+        e.preventDefault();
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            const tracked = this.touches.get(t.identifier);
+            if (tracked) {
+                tracked.currentX = t.clientX;
+                tracked.currentY = t.clientY;
+            }
+        }
+
+        if (this.touches.size === 1) {
+            // Single finger drag = pan camera
+            const touch = Array.from(this.touches.values())[0];
+            const dx = touch.currentX - touch.startX;
+            const dy = touch.currentY - touch.startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > TOUCH_DRAG_THRESHOLD) {
+                this.clearLongPress();
+
+                if (!this.touchDragging) {
+                    this.touchDragging = true;
+                    // Store previous position for incremental panning
+                    (touch as any)._prevX = touch.startX;
+                    (touch as any)._prevY = touch.startY;
+                }
+
+                const prevX = (touch as any)._prevX ?? touch.startX;
+                const prevY = (touch as any)._prevY ?? touch.startY;
+                const panDx = touch.currentX - prevX;
+                const panDy = touch.currentY - prevY;
+                (touch as any)._prevX = touch.currentX;
+                (touch as any)._prevY = touch.currentY;
+
+                this.renderer.getCamera().pan(panDx, panDy);
+            }
+        } else if (this.touches.size === 2) {
+            const [t1, t2] = Array.from(this.touches.values());
+
+            // Pinch zoom
+            const newDist = this.touchDistance(t1, t2);
+            if (this.prevPinchDist > 0) {
+                const zoomDelta = (newDist - this.prevPinchDist) * 0.005;
+                const c = this.touchCenter(t1, t2);
+                if (Math.abs(zoomDelta) > 0.001) {
+                    this.renderer.getCamera().zoomAt(zoomDelta, c.x, c.y);
+                }
+            }
+            this.prevPinchDist = newDist;
+
+            // Two-finger pan
+            const newCenter = this.touchCenter(t1, t2);
+            const panDx = newCenter.x - this.prevPanCenter.x;
+            const panDy = newCenter.y - this.prevPanCenter.y;
+            if (Math.abs(panDx) > 0.5 || Math.abs(panDy) > 0.5) {
+                this.renderer.getCamera().pan(panDx, panDy);
+            }
+            this.prevPanCenter = newCenter;
+        }
+    };
+
+    private onTouchEnd = (e: TouchEvent): void => {
+        e.preventDefault();
+
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            const tracked = this.touches.get(t.identifier);
+
+            if (tracked && this.touches.size === 1) {
+                // Single touch ending
+                this.clearLongPress();
+                const elapsed = performance.now() - tracked.startTime;
+                const dx = t.clientX - tracked.startX;
+                const dy = t.clientY - tracked.startY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (!this.touchDragging && dist < TOUCH_TAP_MAX_DIST && elapsed < TOUCH_TAP_MAX_TIME) {
+                    // Tap = select site (like left-click)
+                    this.handleLeftClick(t.clientX, t.clientY);
+                }
+                this.touchDragging = false;
+            }
+
+            this.touches.delete(t.identifier);
+        }
+
+        if (this.touches.size === 0) {
+            this.touchDragging = false;
+            this.prevPinchDist = 0;
         }
     };
 }

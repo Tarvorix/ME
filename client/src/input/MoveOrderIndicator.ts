@@ -1,6 +1,6 @@
 import { Graphics } from 'pixi.js';
 import type { SpritePool } from '../render/SpritePool';
-import { tileToScreen } from '../render/IsoUtils';
+import { tileToBattleWorld } from '../render/BattleViewProjection';
 
 const FADE_DURATION = 800; // ms
 
@@ -19,10 +19,10 @@ export class MoveOrderIndicator {
     }
 
     show(tileX: number, tileY: number): void {
-        const { sx, sy } = tileToScreen(tileX, tileY);
+        const { x, y } = tileToBattleWorld(tileX, tileY);
         this.graphic.clear();
-        this.graphic.x = sx;
-        this.graphic.y = sy;
+        this.graphic.x = x;
+        this.graphic.y = y;
 
         // Draw a small diamond marker
         this.graphic.moveTo(0, -8);

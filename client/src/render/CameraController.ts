@@ -2,12 +2,29 @@ import { Container } from 'pixi.js';
 import { TILE_WIDTH, TILE_HEIGHT, MAP_WIDTH, MAP_HEIGHT } from '../config';
 import { tileToScreen } from './IsoUtils';
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2.0;
+const DEFAULT_MIN_ZOOM = 0.25;
+const DEFAULT_MAX_ZOOM = 2.0;
 const ZOOM_SPEED = 0.1;
 const PAN_SPEED = 8; // pixels per frame for WASD/arrow key panning
 const EDGE_SCROLL_MARGIN = 20; // pixels from screen edge to trigger edge scrolling
 const EDGE_SCROLL_SPEED = 6; // pixels per frame for edge scrolling
+const DEFAULT_FIT_PADDING = 0.9;
+
+interface CameraControllerOptions {
+    mapWidth?: number;
+    mapHeight?: number;
+    worldWidth?: number;
+    worldHeight?: number;
+    worldOriginX?: number;
+    worldOriginY?: number;
+    rotation?: number;
+    baseScaleX?: number;
+    baseScaleY?: number;
+    initialZoom?: number;
+    minZoom?: number;
+    maxZoom?: number;
+    fitPadding?: number;
+}
 
 /**
  * Camera controller for panning and zooming the isometric view.
@@ -29,11 +46,40 @@ export class CameraController {
     private mouseX = 0;
     private mouseY = 0;
     private mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+    private readonly mapWidth: number;
+    private readonly mapHeight: number;
+    private readonly worldWidth: number | null;
+    private readonly worldHeight: number | null;
+    private readonly worldOriginX: number;
+    private readonly worldOriginY: number;
+    private readonly rotation: number;
+    private readonly baseScaleX: number;
+    private readonly baseScaleY: number;
+    private readonly minZoom: number;
+    private readonly maxZoom: number;
+    private readonly fitPadding: number;
 
     constructor(
         private worldContainer: Container,
         private canvas: HTMLCanvasElement,
+        options: CameraControllerOptions = {},
     ) {
+        this.mapWidth = options.mapWidth ?? MAP_WIDTH;
+        this.mapHeight = options.mapHeight ?? MAP_HEIGHT;
+        this.worldWidth = options.worldWidth ?? null;
+        this.worldHeight = options.worldHeight ?? null;
+        this.worldOriginX = options.worldOriginX ?? 0;
+        this.worldOriginY = options.worldOriginY ?? 0;
+        this.rotation = options.rotation ?? 0;
+        this.baseScaleX = options.baseScaleX ?? 1;
+        this.baseScaleY = options.baseScaleY ?? 1;
+        this.zoom = options.initialZoom ?? 1.0;
+        this.minZoom = options.minZoom ?? DEFAULT_MIN_ZOOM;
+        this.maxZoom = options.maxZoom ?? DEFAULT_MAX_ZOOM;
+        this.fitPadding = options.fitPadding ?? DEFAULT_FIT_PADDING;
+        this.worldContainer.rotation = this.rotation;
+        this.applyScale();
+
         this.canvas.addEventListener('pointerdown', this.onPointerDown);
         this.canvas.addEventListener('pointermove', this.onPointerMove);
         this.canvas.addEventListener('pointerup', this.onPointerUp);
@@ -67,48 +113,72 @@ export class CameraController {
 
     /**
      * Center the camera on the isometric map diamond and auto-fit zoom.
-     * Computes the full isometric diamond bounds from the 4 map corners,
+     * Computes the full map bounds from the 4 map corners after the battle-view rotation,
      * then calculates a zoom level that fits the diamond within the screen
-     * (with 10% margin), clamped to [MIN_ZOOM, MAX_ZOOM].
+     * (with padding), clamped to the configured zoom range.
      */
     centerOnMap(screenWidth: number, screenHeight: number): void {
+        if (this.worldWidth !== null && this.worldHeight !== null) {
+            const fitZoom = Math.min(
+                (screenWidth * this.fitPadding) / this.worldWidth,
+                (screenHeight * this.fitPadding) / this.worldHeight,
+            );
+            this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, fitZoom));
+            this.applyScale();
+            this.worldContainer.x = screenWidth / 2 - (this.worldOriginX + this.worldWidth / 2) * this.zoom;
+            this.worldContainer.y = screenHeight / 2 - (this.worldOriginY + this.worldHeight / 2) * this.zoom;
+            return;
+        }
+
         // Compute isometric screen positions of the 4 map corners
         const topLeft = tileToScreen(0, 0);
-        const topRight = tileToScreen(MAP_WIDTH, 0);
-        const bottomLeft = tileToScreen(0, MAP_HEIGHT);
-        const bottomRight = tileToScreen(MAP_WIDTH, MAP_HEIGHT);
+        const topRight = tileToScreen(this.mapWidth, 0);
+        const bottomLeft = tileToScreen(0, this.mapHeight);
+        const bottomRight = tileToScreen(this.mapWidth, this.mapHeight);
 
-        // Find bounding box of the isometric diamond
-        const minX = Math.min(topLeft.sx, topRight.sx, bottomLeft.sx, bottomRight.sx);
-        const maxX = Math.max(topLeft.sx, topRight.sx, bottomLeft.sx, bottomRight.sx);
-        const minY = Math.min(topLeft.sy, topRight.sy, bottomLeft.sy, bottomRight.sy);
-        const maxY = Math.max(topLeft.sy, topRight.sy, bottomLeft.sy, bottomRight.sy);
+        const corners = [topLeft, topRight, bottomLeft, bottomRight].map((point) => (
+            this.projectPoint(point.sx, point.sy)
+        ));
+
+        // Find bounding box of the rotated map footprint
+        const minX = Math.min(...corners.map((corner) => corner.x));
+        const maxX = Math.max(...corners.map((corner) => corner.x));
+        const minY = Math.min(...corners.map((corner) => corner.y));
+        const maxY = Math.max(...corners.map((corner) => corner.y));
 
         const mapW = maxX - minX;
         const mapH = maxY - minY;
 
-        // Center of the diamond in world space
+        // Center of the rotated footprint in screen space at zoom=1
         const centerX = (minX + maxX) / 2;
         const centerY = (minY + maxY) / 2;
 
-        // Compute zoom to fit diamond with 10% margin, clamped to valid range
+        // Compute zoom to fit the rotated map footprint within the viewport
         const fitZoom = Math.min(
-            (screenWidth * 0.9) / mapW,
-            (screenHeight * 0.9) / mapH,
+            (screenWidth * this.fitPadding) / mapW,
+            (screenHeight * this.fitPadding) / mapH,
         );
-        this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
-        this.worldContainer.scale.set(this.zoom);
+        this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, fitZoom));
+        this.applyScale();
 
-        // Position so diamond center is at screen center
+        // Position so the rotated map center is at screen center
         this.worldContainer.x = screenWidth / 2 - centerX * this.zoom;
         this.worldContainer.y = screenHeight / 2 - centerY * this.zoom;
     }
 
-    /** Convert screen coords to world coords (accounting for camera offset and zoom). */
+    /** Convert client coords to world coords (accounting for camera offset, zoom, and rotation). */
     screenToWorld(screenX: number, screenY: number): { wx: number; wy: number } {
+        const viewport = this.clientToViewport(screenX, screenY);
+        const dx = viewport.x - this.worldContainer.x;
+        const dy = viewport.y - this.worldContainer.y;
+        const cos = Math.cos(this.rotation);
+        const sin = Math.sin(this.rotation);
+        const unrotatedX = dx * cos + dy * sin;
+        const unrotatedY = -dx * sin + dy * cos;
+
         return {
-            wx: (screenX - this.worldContainer.x) / this.zoom,
-            wy: (screenY - this.worldContainer.y) / this.zoom,
+            wx: unrotatedX / (this.baseScaleX * this.zoom),
+            wy: unrotatedY / (this.baseScaleY * this.zoom),
         };
     }
 
@@ -120,14 +190,15 @@ export class CameraController {
 
     /** Zoom the camera by a delta amount, centered on a screen point. */
     zoomAt(delta: number, screenX: number, screenY: number): void {
+        const viewport = this.clientToViewport(screenX, screenY);
         const oldZoom = this.zoom;
-        this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.zoom + delta));
+        this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom + delta));
 
         // Adjust position so the zoom is centered on the focal point
         const ratio = this.zoom / oldZoom;
-        this.worldContainer.x = screenX - (screenX - this.worldContainer.x) * ratio;
-        this.worldContainer.y = screenY - (screenY - this.worldContainer.y) * ratio;
-        this.worldContainer.scale.set(this.zoom);
+        this.worldContainer.x = viewport.x - (viewport.x - this.worldContainer.x) * ratio;
+        this.worldContainer.y = viewport.y - (viewport.y - this.worldContainer.y) * ratio;
+        this.applyScale();
     }
 
     getZoom(): number {
@@ -149,12 +220,15 @@ export class CameraController {
         if (this.keysDown.has('d') || this.keysDown.has('arrowright')) dx -= PAN_SPEED;
 
         // Edge scrolling (mouse near screen edge)
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (this.mouseX < EDGE_SCROLL_MARGIN) dx += EDGE_SCROLL_SPEED;
-        if (this.mouseX > w - EDGE_SCROLL_MARGIN) dx -= EDGE_SCROLL_SPEED;
-        if (this.mouseY < EDGE_SCROLL_MARGIN) dy += EDGE_SCROLL_SPEED;
-        if (this.mouseY > h - EDGE_SCROLL_MARGIN) dy -= EDGE_SCROLL_SPEED;
+        const rect = this.canvas.getBoundingClientRect();
+        const localMouseX = this.mouseX - rect.left;
+        const localMouseY = this.mouseY - rect.top;
+        if (localMouseX >= 0 && localMouseX <= rect.width && localMouseY >= 0 && localMouseY <= rect.height) {
+            if (localMouseX < EDGE_SCROLL_MARGIN) dx += EDGE_SCROLL_SPEED;
+            if (localMouseX > rect.width - EDGE_SCROLL_MARGIN) dx -= EDGE_SCROLL_SPEED;
+            if (localMouseY < EDGE_SCROLL_MARGIN) dy += EDGE_SCROLL_SPEED;
+            if (localMouseY > rect.height - EDGE_SCROLL_MARGIN) dy -= EDGE_SCROLL_SPEED;
+        }
 
         if (dx !== 0 || dy !== 0) {
             this.worldContainer.x += dx;
@@ -211,4 +285,32 @@ export class CameraController {
         const delta = -Math.sign(e.deltaY) * ZOOM_SPEED;
         this.zoomAt(delta, e.clientX, e.clientY);
     };
+
+    private clientToViewport(clientX: number, clientY: number): { x: number; y: number } {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top,
+        };
+    }
+
+    private rotatePoint(x: number, y: number): { x: number; y: number } {
+        const cos = Math.cos(this.rotation);
+        const sin = Math.sin(this.rotation);
+        return {
+            x: x * cos - y * sin,
+            y: x * sin + y * cos,
+        };
+    }
+
+    private projectPoint(x: number, y: number): { x: number; y: number } {
+        return this.rotatePoint(x * this.baseScaleX, y * this.baseScaleY);
+    }
+
+    private applyScale(): void {
+        this.worldContainer.scale.set(
+            this.baseScaleX * this.zoom,
+            this.baseScaleY * this.zoom,
+        );
+    }
 }

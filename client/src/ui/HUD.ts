@@ -3,6 +3,8 @@ import { html } from 'htm/preact';
 import { ResourceBar } from './ResourceBar';
 import { SelectionPanel } from './SelectionPanel';
 import { BuildMenu } from './BuildMenu';
+import { ReinforcementPanel, readReinforcementData } from './ReinforcementPanel';
+import type { ReinforcementData } from './ReinforcementPanel';
 import type { SelectionInfo } from './SelectionPanel';
 import type { ProductionLineInfo } from './BuildMenu';
 import type { GameBridge } from '../bridge/GameBridge';
@@ -20,10 +22,14 @@ export class HUD {
     private lastUIState: UIState = {
         energy: 0, income: 0, expense: 0, strain: 0, strainPenalty: 0, gameTick: 0,
     };
+    /** Whether this HUD is for a campaign battle (supports reinforcements). */
+    private hasReinforcements: boolean;
 
     constructor(bridge: GameBridge) {
         this.bridge = bridge;
         this.root = document.getElementById('hud-root')!;
+        // Check if bridge supports reinforcements (CampaignBattleAdapter has cmdReinforce)
+        this.hasReinforcements = typeof (bridge as any).cmdReinforce === 'function';
     }
 
     /** Call once per frame to update HUD with latest game state. */
@@ -38,6 +44,11 @@ export class HUD {
         // Read production lines from UI state buffer bytes [68-195]
         const productionLines = this.readProductionLines(uiView);
 
+        // Read reinforcement data from UI state buffer bytes [196-235]
+        const reinforcementData = this.hasReinforcements
+            ? readReinforcementData(uiView)
+            : null;
+
         // Render
         render(
             html`
@@ -48,6 +59,14 @@ export class HUD {
                     onProduce=${(unitType: number) => this.bridge.cmdProduce(0, unitType)}
                     onCancel=${(lineIndex: number) => this.bridge.cmdCancelProduction(0, lineIndex)}
                 />
+                ${reinforcementData ? html`
+                    <${ReinforcementPanel}
+                        data=${reinforcementData}
+                        onReinforce=${(unitType: number, count: number) => {
+                            (this.bridge as any).cmdReinforce(0, unitType, count);
+                        }}
+                    />
+                ` : null}
             `,
             this.root,
         );

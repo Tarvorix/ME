@@ -1,5 +1,5 @@
 import { Texture, CanvasSource } from 'pixi.js';
-import { TILE_WIDTH, TILE_HEIGHT } from '../config';
+import { TILE_WIDTH } from '../config';
 
 /** Ground tile variants (5 textures, randomly assigned by sprite_variant). */
 const GROUND_FILES = [
@@ -16,10 +16,7 @@ const EDGE_FILES = [
     'Terrain/ME_end_concrete.png',
 ];
 
-/**
- * Loads square terrain PNGs and creates isometric diamond textures (64x32)
- * by clipping through a diamond-shaped path on an offscreen canvas.
- */
+/** Loads square terrain PNGs and scales them to orthogonal 64x64 battle tiles. */
 export class TerrainGenerator {
     private groundTextures: Texture[] = [];
     private edgeTextures: Texture[] = [];
@@ -31,10 +28,10 @@ export class TerrainGenerator {
         ]);
 
         for (const img of groundImages) {
-            this.groundTextures.push(this.createDiamondTexture(img));
+            this.groundTextures.push(this.createSquareTexture(img));
         }
         for (const img of edgeImages) {
-            this.edgeTextures.push(this.createDiamondTexture(img));
+            this.edgeTextures.push(this.createSquareTexture(img));
         }
 
         console.log(`Terrain loaded: ${this.groundTextures.length} ground, ${this.edgeTextures.length} edge`);
@@ -59,23 +56,14 @@ export class TerrainGenerator {
         });
     }
 
-    private createDiamondTexture(img: HTMLImageElement): Texture {
+    private createSquareTexture(img: HTMLImageElement): Texture {
         const canvas = document.createElement('canvas');
         canvas.width = TILE_WIDTH;
-        canvas.height = TILE_HEIGHT;
+        canvas.height = TILE_WIDTH;
         const ctx = canvas.getContext('2d')!;
 
-        // Diamond clip path
-        ctx.beginPath();
-        ctx.moveTo(TILE_WIDTH / 2, 0);
-        ctx.lineTo(TILE_WIDTH, TILE_HEIGHT / 2);
-        ctx.lineTo(TILE_WIDTH / 2, TILE_HEIGHT);
-        ctx.lineTo(0, TILE_HEIGHT / 2);
-        ctx.closePath();
-        ctx.clip();
-
-        // Draw source tile scaled to fill the diamond area
-        ctx.drawImage(img, 0, 0, TILE_WIDTH, TILE_HEIGHT);
+        // Draw source tile scaled into a square orthogonal battle cell.
+        ctx.drawImage(img, 0, 0, TILE_WIDTH, TILE_WIDTH);
 
         const source = new CanvasSource({ resource: canvas });
         return new Texture({ source });

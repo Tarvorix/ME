@@ -14,20 +14,15 @@ pub enum Direction {
 }
 
 impl Direction {
-    /// Determine facing direction from a movement delta (dx, dy) in tile space.
-    /// Converts to isometric screen-space direction for sprite rendering.
+    /// Determine facing direction from a movement delta (dx, dy) in battle tile space.
+    /// RTS battles now render on an orthogonal square grid, so facings should follow
+    /// the direct world axes instead of the old isometric screen projection.
     pub fn from_delta(dx: f32, dy: f32) -> Self {
         if dx == 0.0 && dy == 0.0 {
             return Direction::S;
         }
 
-        // Convert tile-space delta to screen-space delta for isometric projection.
-        // Screen X = (tileX - tileY) * halfW  →  dsx = dx - dy
-        // Screen Y = (tileX + tileY) * halfH  →  dsy = dx + dy
-        let screen_dx = dx - dy;
-        let screen_dy = dx + dy;
-
-        let angle = screen_dy.atan2(screen_dx);
+        let angle = dy.atan2(dx);
         let angle = if angle < 0.0 { angle + std::f32::consts::TAU } else { angle };
         let sector = ((angle + std::f32::consts::FRAC_PI_8) / std::f32::consts::FRAC_PI_4) as u32 % 8;
 
@@ -169,22 +164,14 @@ mod tests {
 
     #[test]
     fn test_direction_from_delta() {
-        // Tile deltas converted to isometric screen directions.
-        // Tile +X → screen (+1, +1) → SE
-        assert_eq!(Direction::from_delta(1.0, 0.0), Direction::SE);
-        // Tile +Y → screen (-1, +1) → SW
-        assert_eq!(Direction::from_delta(0.0, 1.0), Direction::SW);
-        // Tile -X → screen (-1, -1) → NW
-        assert_eq!(Direction::from_delta(-1.0, 0.0), Direction::NW);
-        // Tile -Y → screen (+1, -1) → NE
-        assert_eq!(Direction::from_delta(0.0, -1.0), Direction::NE);
-        // Tile +X+Y → screen (0, +2) → S
-        assert_eq!(Direction::from_delta(1.0, 1.0), Direction::S);
-        // Tile +X-Y → screen (+2, 0) → E
-        assert_eq!(Direction::from_delta(1.0, -1.0), Direction::E);
-        // Tile -X+Y → screen (-2, 0) → W
-        assert_eq!(Direction::from_delta(-1.0, 1.0), Direction::W);
-        // Tile -X-Y → screen (0, -2) → N
-        assert_eq!(Direction::from_delta(-1.0, -1.0), Direction::N);
+        // Orthogonal square-grid facings.
+        assert_eq!(Direction::from_delta(1.0, 0.0), Direction::E);
+        assert_eq!(Direction::from_delta(0.0, 1.0), Direction::S);
+        assert_eq!(Direction::from_delta(-1.0, 0.0), Direction::W);
+        assert_eq!(Direction::from_delta(0.0, -1.0), Direction::N);
+        assert_eq!(Direction::from_delta(1.0, 1.0), Direction::SE);
+        assert_eq!(Direction::from_delta(1.0, -1.0), Direction::NE);
+        assert_eq!(Direction::from_delta(-1.0, 1.0), Direction::SW);
+        assert_eq!(Direction::from_delta(-1.0, -1.0), Direction::NW);
     }
 }

@@ -26,7 +26,7 @@ pub struct PlayerEconomy {
 impl PlayerEconomy {
     pub fn new() -> Self {
         PlayerEconomy {
-            energy_bank: 500.0,
+            energy_bank: 300.0,
             base_income: 5.0,
             mining_income: 0.0,
             relic_income: 0.0,
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn test_starting_economy() {
         let econ = PlayerEconomy::new();
-        assert_eq!(econ.energy_bank, 500.0);
+        assert_eq!(econ.energy_bank, 300.0);
         assert_eq!(econ.base_income, 5.0);
         assert_eq!(econ.conscription_strain, 0.0);
     }
@@ -300,9 +300,9 @@ mod tests {
 
         let econ = game.world.get_resource::<Economies>().unwrap();
         let bank = econ.0[0].energy_bank;
-        // Expected: 500 + (5.0 * 0.05) = 500.25
-        assert!((bank - 500.25).abs() < 0.01,
-            "Bank should be ~500.25, got {}", bank);
+        // Expected: 300 + (5.0 * 0.05) = 300.25
+        assert!((bank - 300.25).abs() < 0.01,
+            "Bank should be ~300.25, got {}", bank);
     }
 
     #[test]
@@ -315,9 +315,9 @@ mod tests {
 
         let econ = game.world.get_resource::<Economies>().unwrap();
         let bank = econ.0[0].energy_bank;
-        // Expected: 500 + (5.0 - 0.3) * 0.05 = 500 + 0.235 = 500.235
-        assert!((bank - 500.235).abs() < 0.01,
-            "Bank should be ~500.235 with Thrall upkeep, got {}", bank);
+        // Expected: 300 + (5.0 - 0.3) * 0.05 = 300 + 0.235 = 300.235
+        assert!((bank - 300.235).abs() < 0.01,
+            "Bank should be ~300.235 with Thrall upkeep, got {}", bank);
     }
 
     #[test]
@@ -440,6 +440,6 @@ mod tests {
         let ui = game.world.get_resource::<UIStateBuffer>().unwrap();
         let energy = f32::from_le_bytes([ui.0[0], ui.0[1], ui.0[2], ui.0[3]]);
         assert!(energy > 0.0, "UI state should have positive energy, got {}", energy);
-        assert!((energy - 500.25).abs() < 0.1, "Energy should be ~500.25, got {}", energy);
+        assert!((energy - 300.25).abs() < 0.1, "Energy should be ~300.25, got {}", energy);
     }
 }

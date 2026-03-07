@@ -13,6 +13,9 @@ import type { GameBridge } from '../bridge/GameBridge';
 import { SIM_TICK_MS, RENDER_ENTRY_SIZE } from '../config';
 import { EventType } from '../bridge/types';
 import { SoundManager } from '../audio/SoundManager';
+import {
+    getBattleWorldBounds,
+} from './BattleViewProjection';
 
 /**
  * Orchestrates the full render pipeline:
@@ -24,6 +27,7 @@ import { SoundManager } from '../audio/SoundManager';
 export class GameRenderer {
     private app!: Application;
     private worldContainer!: Container;
+    private mapPlaneContainer!: Container;
     private terrainGen!: TerrainGenerator;
     private tilemapRenderer!: TilemapRenderer;
     private fogRenderer!: FogRenderer;
@@ -37,6 +41,7 @@ export class GameRenderer {
     private soundManager: SoundManager;
     private simAccumulator = 0;
     private ownsApp = false;
+    private resizeHandler: (() => void) | null = null;
 
     constructor() {
         this.soundManager = new SoundManager();
@@ -77,13 +82,17 @@ export class GameRenderer {
         this.worldContainer = new Container();
         this.app.stage.addChild(this.worldContainer);
 
+        // Battle terrain plane. Units/FX are layered above it.
+        this.mapPlaneContainer = new Container();
+        this.worldContainer.addChild(this.mapPlaneContainer);
+
         // Load terrain textures and build tilemap
         this.terrainGen = new TerrainGenerator();
         await this.terrainGen.load();
 
         this.tilemapRenderer = new TilemapRenderer();
         await this.tilemapRenderer.build(bridge, this.terrainGen);
-        this.worldContainer.addChild(this.tilemapRenderer.container);
+        this.mapPlaneContainer.addChild(this.tilemapRenderer.container);
         console.log(`Tilemap: ${this.tilemapRenderer.container.children.length} tiles`);
 
         // Load sprite atlases and create sprite pool
@@ -102,10 +111,17 @@ export class GameRenderer {
         // Fog of war overlay (above everything so fog hides enemies visually)
         this.fogRenderer = new FogRenderer();
         this.fogRenderer.build(bridge);
-        this.worldContainer.addChild(this.fogRenderer.container);
+        this.mapPlaneContainer.addChild(this.fogRenderer.container);
 
         // Camera
-        this.camera = new CameraController(this.worldContainer, this.app.canvas);
+        const battleBounds = getBattleWorldBounds(bridge.getMapWidth(), bridge.getMapHeight());
+        this.camera = new CameraController(this.worldContainer, this.app.canvas, {
+            worldWidth: battleBounds.width,
+            worldHeight: battleBounds.height,
+            worldOriginX: battleBounds.minX,
+            worldOriginY: battleBounds.minY,
+            minZoom: 0.1,
+        });
         // Center immediately with current dimensions
         this.camera.centerOnMap(this.app.screen.width, this.app.screen.height);
         // Re-center after one frame to ensure canvas dimensions have settled
@@ -113,6 +129,10 @@ export class GameRenderer {
         requestAnimationFrame(() => {
             this.camera.centerOnMap(this.app.screen.width, this.app.screen.height);
         });
+        this.resizeHandler = () => {
+            this.camera.centerOnMap(this.app.screen.width, this.app.screen.height);
+        };
+        window.addEventListener('resize', this.resizeHandler);
         console.log(`Camera offset: ${this.worldContainer.x}, ${this.worldContainer.y}`);
 
         // Input
@@ -139,6 +159,10 @@ export class GameRenderer {
 
         // Destroy camera (removes event listeners)
         this.camera.destroy();
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+        }
 
         // Clear HUD
         this.hud.destroy();
@@ -203,14 +227,13 @@ export class GameRenderer {
     };
 
     private syncHealthBars(view: DataView, count: number): void {
-        const entries: Array<{ x: number; y: number; healthPct: number; scale: number }> = [];
+        const entries: Array<{ x: number; y: number; healthPct: number }> = [];
 
         for (let i = 0; i < count; i++) {
             const off = i * RENDER_ENTRY_SIZE;
             const entityId = view.getUint32(off, true);
             const healthPct = view.getUint8(off + 16);
             const flags = view.getUint8(off + 19);
-            const scale = view.getFloat32(off + 20, true);
             const animState = (flags >> 2) & 0x03;
 
             // Skip full health, dead/dying entities, and death animations
@@ -219,7 +242,12 @@ export class GameRenderer {
             // Use sprite position directly to guarantee bars track sprites exactly
             const sprite = this.spritePool.getSprite(entityId);
             if (sprite) {
-                entries.push({ x: sprite.x, y: sprite.y, healthPct, scale });
+                const spriteTopY = sprite.y - sprite.height * sprite.anchor.y;
+                entries.push({
+                    x: sprite.x,
+                    y: spriteTopY - 6,
+                    healthPct,
+                });
             }
         }
 
@@ -237,14 +265,9 @@ export class GameRenderer {
 
             switch (event.eventType) {
                 case EventType.Shot: {
-                    const targetId = event.payload.getUint32(0, true);
-                    const targetPos = this.spritePool.getEntityScreenPosition(targetId);
-                    if (targetPos) {
-                        this.particleManager.spawnMuzzleFlash(
-                            event.x, event.y,
-                            targetPos.tileX, targetPos.tileY
-                        );
-                    }
+                    const targetX = event.payload.getFloat32(0, true);
+                    const targetY = event.payload.getFloat32(4, true);
+                    this.particleManager.spawnMuzzleFlash(event.x, event.y, targetX, targetY);
                     this.soundManager.playShot(event.x, event.y);
                     break;
                 }

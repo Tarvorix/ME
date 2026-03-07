@@ -2,9 +2,15 @@ use crate::campaign::map::{CampaignMap, GarrisonedUnit};
 use crate::campaign::economy::{CampaignEconomy, campaign_resource_tick};
 use crate::campaign::research::PlayerResearch;
 use crate::campaign::dispatch::DispatchQueue;
-use crate::campaign::bridge::{BattleRequest, BattleResult, create_battle_from_campaign, extract_battle_result, apply_battle_result};
+use crate::campaign::bridge::{BattleRequest, BattleResult, create_battle_from_campaign, extract_battle_result, apply_battle_result, battle_local_slots};
+use crate::campaign::garrison::remove_from_garrison;
 use crate::ai::campaign_ai::{CampaignAiState, campaign_ai_tick};
 use crate::game::Game;
+use crate::systems::reinforcement::{PendingReinforcements, ReinforcementAvailability, ReinforcementRequest};
+use crate::types::SpriteId;
+use crate::blueprints::get_blueprint;
+use crate::components::Health;
+use crate::deployment::DeploymentState;
 
 /// Represents an active battle on the campaign map.
 pub struct ActiveBattle {
@@ -92,6 +98,9 @@ impl CampaignGame {
             }
         }
 
+        // Update reinforcement availability for each battle (before ticking battles)
+        self.update_reinforcement_availability();
+
         // Tick active battles
         let mut resolved_battles = Vec::new();
         for battle in &mut self.active_battles {
@@ -124,6 +133,12 @@ impl CampaignGame {
             &mut self.research,
             &mut self.dispatch_queue,
         );
+
+        // AI reinforcement requests: check every 3 seconds (60 ticks) if AI players
+        // in active battles should request reinforcements
+        if self.tick_count % 60 == 0 {
+            self.ai_request_reinforcements();
+        }
 
         self.tick_count += 1;
     }
@@ -173,6 +188,228 @@ impl CampaignGame {
     pub fn resolve_battle(&mut self, result: &BattleResult) {
         if let Some(site) = self.campaign_map.get_site_mut(result.site_id) {
             apply_battle_result(site, result);
+        }
+    }
+
+    /// Request reinforcements for a player in a specific battle.
+    /// Validates: CP alive, units available in Node garrison, off cooldown.
+    /// Deducts units from Node garrison and queues them in the battle.
+    /// Returns true on success.
+    pub fn request_reinforcement(
+        &mut self,
+        battle_index: usize,
+        player: u8,
+        unit_type: u16,
+        count: u32,
+    ) -> bool {
+        if count == 0 {
+            return false;
+        }
+
+        let sprite_id = match SpriteId::from_u16(unit_type) {
+            Some(s) => s,
+            None => return false,
+        };
+
+        // Only allow combat unit types (not buildings)
+        if sprite_id == SpriteId::CommandPost || sprite_id == SpriteId::Node || sprite_id == SpriteId::CapturePoint {
+            return false;
+        }
+
+        let battle = match self.active_battles.get_mut(battle_index) {
+            Some(b) => b,
+            None => return false,
+        };
+        let (local_attacker, local_defender) = battle_local_slots(battle.attacker, battle.defender);
+        let local_player = if player == battle.attacker {
+            local_attacker
+        } else if player == battle.defender {
+            local_defender
+        } else {
+            return false;
+        };
+
+        // Check CP is alive in the battle
+        let cp_alive = {
+            let ds = match battle.game.world.get_resource::<DeploymentState>() {
+                Some(ds) => ds,
+                None => return false,
+            };
+
+            let cp_entity = match ds.command_posts.get(local_player as usize) {
+                Some(Some(e)) => *e,
+                _ => return false,
+            };
+
+            let health_storage = battle.game.world.get_storage::<Health>();
+            if let Some(hs) = health_storage {
+                if let Some(h) = hs.get(cp_entity) {
+                    !h.is_dead()
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        };
+
+        if !cp_alive {
+            return false;
+        }
+
+        // Check cooldown
+        {
+            let pr = match battle.game.world.get_resource::<PendingReinforcements>() {
+                Some(pr) => pr,
+                None => return false,
+            };
+            if !pr.can_request(player) {
+                return false;
+            }
+        }
+
+        // Find the player's Node on the campaign map and check garrison
+        let node = match self.campaign_map.get_node_mut(player) {
+            Some(n) => n,
+            None => return false,
+        };
+
+        // Try to remove units from Node garrison
+        let removed = match remove_from_garrison(&mut node.garrison, unit_type, count) {
+            Some(r) => r,
+            None => return false, // Not enough units
+        };
+
+        // Add Conscription Strain for Thralls
+        let bp = get_blueprint(sprite_id);
+        if bp.is_conscript {
+            let strain_per_unit = 8.0; // Same as production strain
+            if let Some(econ) = self.economies.get_mut(player as usize) {
+                econ.add_conscription_strain(strain_per_unit * count as f32);
+            }
+        }
+
+        // Queue the reinforcement in the battle
+        let battle = self.active_battles.get_mut(battle_index).unwrap();
+        if let Some(pr) = battle.game.world.get_resource_mut::<PendingReinforcements>() {
+            pr.requests.push(ReinforcementRequest {
+                player: local_player,
+                unit_type: sprite_id,
+                count,
+                health_pct: removed.health_pct,
+                ticks_remaining: 100, // 5 seconds at 20Hz
+            });
+            pr.start_cooldown(local_player);
+        }
+
+        true
+    }
+
+    /// Update ReinforcementAvailability in each active battle based on current Node garrison.
+    fn update_reinforcement_availability(&mut self) {
+        for battle in &mut self.active_battles {
+            let mut avail = ReinforcementAvailability::new(2);
+            let (local_attacker, local_defender) = battle_local_slots(battle.attacker, battle.defender);
+
+            // For each player in the battle (campaign owner + localized battle slot)
+            for &(player, local_player) in &[
+                (battle.attacker, local_attacker),
+                (battle.defender, local_defender),
+            ] {
+                let pidx = local_player as usize;
+
+                // Check CP alive
+                let cp_alive = {
+                    let ds = battle.game.world.get_resource::<DeploymentState>();
+                    if let Some(ds) = ds {
+                        if let Some(Some(cp)) = ds.command_posts.get(pidx) {
+                            let hs = battle.game.world.get_storage::<Health>();
+                            if let Some(hs) = hs {
+                                hs.get(*cp).map(|h| !h.is_dead()).unwrap_or(true)
+                            } else {
+                                true
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                };
+                avail.cp_alive[pidx] = cp_alive;
+
+                // Read Node garrison for this player
+                if let Some(node) = self.campaign_map.get_node(player) {
+                    avail.available[pidx] = node.garrison.iter()
+                        .filter(|g| {
+                            // Only include combat unit types
+                            let sid = SpriteId::from_u16(g.unit_type);
+                            matches!(sid, Some(SpriteId::Thrall) | Some(SpriteId::Sentinel) | Some(SpriteId::HoverTank))
+                        })
+                        .map(|g| (g.unit_type, g.count))
+                        .collect();
+                }
+            }
+
+            battle.game.world.insert_resource(avail);
+        }
+    }
+
+    /// AI players in active battles request reinforcements when they're losing.
+    fn ai_request_reinforcements(&mut self) {
+        // Collect AI player IDs
+        let ai_player_ids: Vec<u8> = self.ai_states.iter().map(|a| a.player_id).collect();
+
+        // First pass: collect what reinforcements to request
+        let mut requests: Vec<(usize, u8, u16, u32)> = Vec::new(); // (battle_idx, player, unit_type, count)
+
+        for battle_idx in 0..self.active_battles.len() {
+            let battle = &self.active_battles[battle_idx];
+                let attacker = battle.attacker;
+                let defender = battle.defender;
+                let (local_attacker, local_defender) = battle_local_slots(attacker, defender);
+
+                for &player in &[attacker, defender] {
+                    if !ai_player_ids.contains(&player) {
+                        continue;
+                    }
+
+                    let local_player = if player == attacker {
+                        local_attacker
+                    } else {
+                        local_defender
+                    };
+                    let alive_units = battle.game.get_player_combat_unit_ids(local_player).len();
+
+                if alive_units < 5 {
+                    // Check garrison availability
+                    if let Some(node) = self.campaign_map.get_node(player) {
+                        let avail_thralls = node.garrison.iter()
+                            .find(|g| g.unit_type == 0)
+                            .map(|g| g.count)
+                            .unwrap_or(0);
+
+                        if avail_thralls >= 3 {
+                            requests.push((battle_idx, player, 0, 3));
+                        } else if avail_thralls > 0 {
+                            requests.push((battle_idx, player, 0, avail_thralls));
+                        } else {
+                            let avail_sentinels = node.garrison.iter()
+                                .find(|g| g.unit_type == 1)
+                                .map(|g| g.count)
+                                .unwrap_or(0);
+                            if avail_sentinels > 0 {
+                                requests.push((battle_idx, player, 1, 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Second pass: execute requests
+        for (battle_idx, player, unit_type, count) in requests {
+            self.request_reinforcement(battle_idx, player, unit_type, count);
         }
     }
 
@@ -253,6 +490,111 @@ mod tests {
 
         assert_eq!(game.active_battles.len(), 1);
         assert!(game.campaign_map.get_site(mine_id).unwrap().is_contested);
+    }
+
+    #[test]
+    fn test_reinforcement_request_deducts_garrison() {
+        let mut game = CampaignGame::new(2, 42);
+
+        // Get initial garrison count at player 0's node
+        let initial_thralls = game.campaign_map.get_node(0).unwrap().garrison.iter()
+            .find(|g| g.unit_type == 0).map(|g| g.count).unwrap_or(0);
+
+        // Trigger a battle so we have an active battle
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 5)]);
+        assert_eq!(game.active_battles.len(), 1);
+
+        // Tick once to set up reinforcement availability
+        game.tick();
+
+        // Request reinforcements
+        let result = game.request_reinforcement(0, 0, 0, 3);
+        assert!(result, "Reinforcement request should succeed");
+
+        // Check garrison was deducted
+        let after_thralls = game.campaign_map.get_node(0).unwrap().garrison.iter()
+            .find(|g| g.unit_type == 0).map(|g| g.count).unwrap_or(0);
+        assert_eq!(after_thralls, initial_thralls - 3, "Garrison should be deducted by 3");
+    }
+
+    #[test]
+    fn test_reinforcement_fails_insufficient_garrison() {
+        let mut game = CampaignGame::new(2, 42);
+
+        // Trigger a battle
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 5)]);
+        game.tick();
+
+        // Request more Hover Tanks than available (should have 1 in garrison)
+        let result = game.request_reinforcement(0, 0, 2, 100);
+        assert!(!result, "Should fail when requesting more units than available");
+    }
+
+    #[test]
+    fn test_reinforcement_cooldown() {
+        let mut game = CampaignGame::new(2, 42);
+
+        // Trigger a battle
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 5)]);
+        game.tick();
+
+        // First request should succeed
+        let result1 = game.request_reinforcement(0, 0, 0, 1);
+        assert!(result1, "First request should succeed");
+
+        // Second request should fail (cooldown)
+        let result2 = game.request_reinforcement(0, 0, 0, 1);
+        assert!(!result2, "Second request should fail due to cooldown");
+    }
+
+    #[test]
+    fn test_reinforcement_units_arrive() {
+        let mut game = CampaignGame::new(2, 42);
+
+        // Trigger a battle
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 5)]);
+        game.tick();
+
+        // Count player 0's thralls in the battle before reinforcement
+        let thralls_before = game.active_battles[0].game.get_player_combat_unit_ids(0).len();
+
+        // Request 2 thrall reinforcements
+        let result = game.request_reinforcement(0, 0, 0, 2);
+        assert!(result);
+
+        // Tick until reinforcements arrive (100+ ticks)
+        for _ in 0..105 {
+            game.tick();
+        }
+
+        // Count thralls after reinforcement
+        let thralls_after = game.active_battles[0].game.get_player_combat_unit_ids(0).len();
+        assert!(thralls_after > thralls_before,
+            "Should have more units after reinforcement, before={} after={}", thralls_before, thralls_after);
     }
 
     #[test]

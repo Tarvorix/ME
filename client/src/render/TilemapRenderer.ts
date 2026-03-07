@@ -1,10 +1,10 @@
 import { Container, Sprite } from 'pixi.js';
-import { tileToScreen } from './IsoUtils';
+import { tileToBattleCellOrigin } from './BattleViewProjection';
 import { TerrainGenerator } from './TerrainGenerator';
 import type { GameBridge } from '../bridge/GameBridge';
 
 /**
- * Creates and manages the isometric tile grid as PixiJS Sprites.
+ * Creates and manages the orthogonal battle tile grid as PixiJS Sprites.
  */
 export class TilemapRenderer {
     readonly container = new Container();
@@ -25,18 +25,16 @@ export class TilemapRenderer {
                     : terrainGen.getTexture(tile.variant);
 
                 const sprite = new Sprite(tex);
-                const { sx, sy } = tileToScreen(x, y);
+                const { x: worldX, y: worldY } = tileToBattleCellOrigin(x, y);
 
-                // Anchor at top-center of the diamond
-                sprite.anchor.set(0.5, 0);
-                sprite.x = sx;
-                sprite.y = sy;
+                sprite.anchor.set(0, 0);
+                sprite.x = worldX;
+                sprite.y = worldY;
 
                 this.container.addChild(sprite);
             }
         }
 
-        // Sort children by y position for correct overlap
         this.container.sortableChildren = true;
         for (const child of this.container.children) {
             (child as Sprite).zIndex = (child as Sprite).y;

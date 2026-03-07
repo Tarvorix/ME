@@ -562,3 +562,106 @@
 - [x] Update AI integration test: doubled tick count for test_ai_produces_units
 - [x] Fix test_production_costs_energy assertion for longer build time
 - [x] All tests pass (290 Rust tests), WASM + client build clean
+
+## Chunk 58: Mobile Support — Responsive UI & Touch Input
+- [x] Campaign touch input: single-finger drag to pan, pinch to zoom, tap to select, long-press for dispatch
+- [x] Responsive campaign HUD: mobile grid layout (< 768px) — single column, bottom sheet for site panel
+- [x] Mobile top bar: smaller padding, wrapping flex layout
+- [x] Hide alerts panel on mobile (right sidebar)
+- [x] Site panel docks to bottom on mobile with 40vh max height
+- [x] Battle banner, research panel, dispatch dialog: use min(px, vw) for mobile-safe widths
+- [x] TypeScript + client build clean
+
+## Chunk 59: Gameplay Tuning — Slower Production & Lower Starting Bank
+- [x] Increase build times: Thrall 10→15s, Sentinel 30→45s, HoverTank 60→90s in blueprints.rs
+- [x] Lower starting energy bank: 500→300 in resource.rs (RTS) and economy.rs (campaign)
+- [x] Update blueprint test assertion (Thrall build_time 10.0 → 15.0)
+- [x] Update production tests: increased tick counts for 6 tests in production.rs
+- [x] Update AI integration test: increased tick count (400→600) for test_ai_produces_units
+- [x] Update economy tests: 500→300 in resource.rs, state_snapshot.rs
+- [x] All tests pass (379 Rust tests)
+
+## Chunk 60: RTS Visual Fixes — Map Fill & Building Scale
+- [x] Remove broken 45° rotation (BATTLE_MAP_ROTATION = 0)
+- [x] CameraController: "fill" zoom — diamond inscribes viewport so map fills screen as rectangle
+- [x] GameRenderer: pass BATTLE_MAP_ROTATION to CameraController (campaign camera unaffected)
+- [x] Scale buildings 2.5x: CommandPost 96/512→240/512, Node 96/512→240/512, CapturePoint 64/512→160/512
+- [x] TypeScript + Rust tests all pass
+
+## Chunk 61: RTS Reinforcement System (PRIORITY — Missing Core Mechanic)
+Design doc Section 4.4 "Reinforcements: The Meatgrinder" — should have been implemented but was not.
+- [x] Rust: Add `Command::RequestReinforcement { player, unit_type, count }` to command.rs
+- [x] Rust: New reinforcement.rs system — PendingReinforcements, ReinforcementAvailability, reinforcement_system()
+- [x] Rust: CampaignGame.request_reinforcement() — validate CP alive, check garrison, deduct units, add to queue
+
+## Chunk 62: RTS Camera Fix — Rotated Battle View
+- [x] Confirm scope: RTS battle camera only, campaign camera unchanged
+- [x] CameraController: support rotated battle-map fit math and inverse screen→world conversion
+- [x] GameRenderer: rotate RTS battle view 45°, lower min zoom so full map fits, recenter on resize
+- [x] Rust: Draw reinforcement units from campaign garrison (bridge between campaign economy and RTS battle)
+- [x] Rust: Thrall reinforcements add Conscription Strain
+- [x] Rust: Reinforcement cooldown timer (3 second cooldown between requests)
+- [x] Rust: Reinforcement arrival timer (5 seconds travel time)
+- [x] Rust: Write reinforcement UI data to UIStateBuffer bytes [196-235]
+- [x] Rust: Register reinforcement_system in game.rs pipeline + write_reinforcement_ui in tick
+- [x] Rust: CampaignGame updates ReinforcementAvailability per battle each tick
+- [x] WASM: Export `campaign_battle_cmd_reinforce(battle_index, player, unit_type, count)` in lib.rs
+- [x] Client: CampaignBridge.battleCmdReinforce() method
+- [x] Client: CampaignBattleAdapter.cmdReinforce() method
+- [x] Client: ReinforcementPanel UI component (shows available units, cooldown, pending requests)
+- [x] Client: HUD.ts renders ReinforcementPanel when bridge supports reinforcements
+- [x] Client: readReinforcementData() reads UIStateBuffer [196-235]
+- [x] Client: Visual feedback — UnitSpawned events emitted on arrival (spawn effect + sound)
+- [x] Rust: AI campaign requests reinforcements when losing (< 5 combat units, every 60 ticks)
+- [x] Tests: 10 reinforcement unit tests (spawning, timing, health, CP-dead blocks, cooldown, UI data, events)
+- [x] Tests: 4 campaign integration tests (garrison deduction, insufficient garrison, cooldown, arrival)
+
+## Chunk 63: RTS Camera Fix — Square Battle Projection
+- [x] Replace incorrect container-only rotation with battle-only square projection
+- [x] CameraController: apply base projection scale before 45° rotation and invert it for input
+- [x] GameRenderer: use Y-scale 2 battle projection so the RTS map footprint is square
+
+## Chunk 64: RTS Camera Fix — Keep Sprite Angle
+- [x] Split battle render into square-projected map plane plus unwarped sprite/FX overlay layer
+- [x] SpritePool, particles, move markers, and input now use square battle-world coordinates
+- [x] Camera centers/zooms against the square battle-world bounds without changing campaign view
+
+## Chunk 65: RTS Camera Fix — Flat Top/Bottom Isometric View
+- [x] Replace forced square battle projection with rotated isometric footprint
+- [x] Flatten RTS battle top/bottom edges via rotation-only battle-world coordinates
+- [x] Camera fit uses rotated battle bounds and sprite facings are remapped to the nearest matching view
+
+## Chunk 66: RTS Camera Fix — True Square Orthogonal Battle Map
+- [x] Stop clipping square terrain art into isometric diamonds for RTS battles
+- [x] Render RTS terrain and fog as a real 64x64 orthogonal grid
+- [x] Keep prerendered unit sprites on top and map input/effects onto square battle coordinates
+
+## Chunk 67: RTS Battle Sprite Alignment on Square Grid
+- [x] Switch RTS battle facing from isometric screen-space to orthogonal world-space directions
+- [x] Restore atlas direction mapping for mirrored prerendered sprites
+- [x] Sort RTS battle sprites by square-map Y depth instead of legacy isometric depth
+
+## Chunk 68: RTS Battle Stability and Formation Fixes
+- [x] Track viewed campaign battles by stable site ID so new/resolved battles do not eject the player from the wrong RTS view
+- [x] Preserve campaign camera zoom when returning from RTS battle view
+- [x] Spread multi-unit move orders into a compact formation instead of stacking all units on one tile
+- [x] Anchor shot effects and health bars to real battle positions to remove ghost visuals
+
+## Chunk 69: RTS Campaign Battle Owner Mapping and Targeting Fixes
+- [x] Localize campaign battle participants into battle-local player slots 0 and 1 so RTS systems do not break against campaign players 2/3
+- [x] Reject friendly explicit-attack commands in RTS combat logic
+- [x] Restrict selection to controllable local units and tint enemy sprites for clear ownership
+
+## Chunk 70: RTS Battle Owner Readability
+- [x] Fix owner-localization verification to ignore neutral capture points when asserting battle slots
+- [x] Remove dead campaign battle setup variables left behind by owner remapping
+- [x] Add explicit RTS owner markers under units/buildings so friendlies and enemies are visually distinct without relying on tint alone
+
+## Chunk 71: RTS Battle Non-Tint Ownership Markers
+- [x] Remove whole-sprite team tint from RTS battle units
+- [x] Strengthen base ownership markers so friendlies, enemies, and neutrals read from the ground ring instead of recolored art
+
+## Chunk 72: Deploy Prep
+- [x] Refresh generated WASM package in `client/src/pkg`
+- [x] Re-run production client build to confirm Pages-ready artifacts compile cleanly
+- [x] Stage current worktree for commit/push on `main`

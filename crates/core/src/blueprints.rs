@@ -55,7 +55,7 @@ static THRALL_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 3.0,
     vision_range: 8.0,
     energy_cost: 30,
-    build_time_secs: 10.0,
+    build_time_secs: 15.0,
     garrisoned_upkeep: 0.1,
     deployed_upkeep: 0.3,
     is_conscript: true,
@@ -72,7 +72,7 @@ static SENTINEL_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 2.0,
     vision_range: 8.0,
     energy_cost: 120,
-    build_time_secs: 30.0,
+    build_time_secs: 45.0,
     garrisoned_upkeep: 0.3,
     deployed_upkeep: 0.8,
     is_conscript: false,
@@ -89,7 +89,7 @@ static HOVER_TANK_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     speed: 2.5,
     vision_range: 10.0,
     energy_cost: 300,
-    build_time_secs: 60.0,
+    build_time_secs: 90.0,
     garrisoned_upkeep: 0.8,
     deployed_upkeep: 2.0,
     is_conscript: false,
@@ -111,7 +111,7 @@ static COMMAND_POST_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     deployed_upkeep: 0.0,
     is_conscript: false,
     attack_cooldown: 0.0,
-    scale: 96.0 / 512.0,
+    scale: 240.0 / 512.0,
 };
 
 // ── Node ────────────────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ static NODE_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     deployed_upkeep: 0.0,
     is_conscript: false,
     attack_cooldown: 0.0,
-    scale: 96.0 / 512.0,
+    scale: 240.0 / 512.0,
 };
 
 // ── Capture Point ──────────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ static CAPTURE_POINT_BLUEPRINT: UnitBlueprint = UnitBlueprint {
     deployed_upkeep: 0.0,
     is_conscript: false,
     attack_cooldown: 0.0,
-    scale: 64.0 / 512.0,
+    scale: 160.0 / 512.0,
 };
 
 #[cfg(test)]
@@ -176,7 +176,7 @@ mod tests {
         assert_eq!(bp.attack_range, 5.0);
         assert_eq!(bp.speed, 3.0);
         assert_eq!(bp.energy_cost, 30);
-        assert_eq!(bp.build_time_secs, 10.0);
+        assert_eq!(bp.build_time_secs, 15.0);
         assert!(bp.is_conscript);
     }
 

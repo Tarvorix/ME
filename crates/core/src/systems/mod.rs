@@ -7,6 +7,7 @@ pub mod death_cleanup;
 pub mod fog;
 pub mod production;
 pub mod resource;
+pub mod reinforcement;
 pub mod animation;
 pub mod render_buffer;
 
@@ -19,5 +20,6 @@ pub use death_cleanup::death_cleanup_system;
 pub use fog::fog_system;
 pub use production::production_system;
 pub use resource::resource_system;
+pub use reinforcement::reinforcement_system;
 pub use animation::animation_system;
 pub use render_buffer::render_buffer_system;

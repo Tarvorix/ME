@@ -104,13 +104,16 @@ export class CampaignHUD {
         const dispatchTarget = sites.find(s => s.siteId === this.dispatchTargetId) ?? null;
         const showDispatch = dispatchSource !== null && dispatchTarget !== null;
 
+        // Detect mobile layout (viewport narrower than 768px)
+        const isMobile = window.innerWidth < 768;
+
         // Render the entire HUD layout
         render(
             html`
                 <!-- ── Grid Layout ────────────────────────────────────── -->
-                <div style=${CAMPAIGN_STYLES.hudGrid}>
+                <div style=${isMobile ? CAMPAIGN_STYLES.hudGridMobile : CAMPAIGN_STYLES.hudGrid}>
                     <!-- TOP BAR -->
-                    <div style=${CAMPAIGN_STYLES.topBar}>
+                    <div style=${isMobile ? CAMPAIGN_STYLES.topBarMobile : CAMPAIGN_STYLES.topBar}>
                         <${CampaignResourceBar}
                             economy=${economy}
                             paused=${paused}
@@ -121,9 +124,17 @@ export class CampaignHUD {
                         />
                     </div>
 
+                    <!-- CENTER (transparent, pointer-events: none — clicks pass to canvas) -->
+
+                    <!-- RIGHT PANEL (hidden on mobile) -->
+                    <div style=${isMobile ? CAMPAIGN_STYLES.rightPanelMobile : CAMPAIGN_STYLES.rightPanel}>
+                        <${CampaignAlerts} alerts=${this.alerts} />
+                    </div>
+
                     <!-- LEFT PANEL (only visible when a site is selected) -->
+                    <!-- On mobile: docked to bottom as a sheet (row 3) -->
                     ${selectedSite ? html`
-                        <div style=${CAMPAIGN_STYLES.leftPanel}>
+                        <div style=${isMobile ? CAMPAIGN_STYLES.leftPanelMobile : CAMPAIGN_STYLES.leftPanel}>
                             <${SitePanel}
                                 site=${selectedSite}
                                 playerNodeId=${nodeId}
@@ -137,13 +148,6 @@ export class CampaignHUD {
                             />
                         </div>
                     ` : null}
-
-                    <!-- CENTER (transparent, pointer-events: none — clicks pass to canvas) -->
-
-                    <!-- RIGHT PANEL -->
-                    <div style=${CAMPAIGN_STYLES.rightPanel}>
-                        <${CampaignAlerts} alerts=${this.alerts} />
-                    </div>
                 </div>
 
                 <!-- ── Battle Notification Overlay ────────────────────── -->

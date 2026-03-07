@@ -354,8 +354,8 @@ mod tests {
             assert!(prods.0[0].queue_unit(SpriteId::Thrall));
         }
 
-        // Thrall build time = 10s. Tick for 10 seconds (200 ticks at 50ms)
-        for _ in 0..200 {
+        // Thrall build time = 15s. Tick for 15 seconds (300 ticks at 50ms)
+        for _ in 0..300 {
             game.tick(50.0);
         }
 
@@ -428,16 +428,16 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (10 seconds)
-        for _ in 0..210 {
+        // Tick through production (15 seconds + buffer)
+        for _ in 0..310 {
             game.tick(50.0);
         }
 
         let end_bank = game.world.get_resource::<Economies>().unwrap().0[0].energy_bank;
-        // Thrall costs 30 energy. Over 10.5s with 5e/s income, the bank gains ~52.5 minus 30 cost.
+        // Thrall costs 30 energy. Over 15.5s with 5e/s income, the bank gains ~77.5 minus 30 cost.
         // Verify bank is LESS than it would be without the production cost (start + income - upkeep).
         // The production cost should have been deducted at some point.
-        let max_possible_bank = start_bank + 5.0 * 10.5; // start + income with no production cost
+        let max_possible_bank = start_bank + 5.0 * 15.5; // start + income with no production cost
         assert!(end_bank < max_possible_bank,
             "Production should have cost energy: end={}, max_without_cost={}", end_bank, max_possible_bank);
     }
@@ -450,8 +450,8 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (10s build time + buffer)
-        for _ in 0..220 {
+        // Tick through production (15s build time + buffer)
+        for _ in 0..320 {
             game.tick(50.0);
         }
 
@@ -475,10 +475,10 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Normal Thrall build time = 10s. At 90% strain, production penalty = 50%.
-        // So effective build time = 10s / (1 - 0.5) = 20s.
-        // Tick for 11s — should NOT be done yet
-        for _ in 0..220 {
+        // Normal Thrall build time = 15s. At 90% strain, production penalty = 50%.
+        // So effective build time = 15s / (1 - 0.5) = 30s.
+        // Tick for 16s — should NOT be done yet
+        for _ in 0..320 {
             game.tick(50.0);
         }
 
@@ -502,8 +502,8 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (10s) + some movement time
-        for _ in 0..400 {
+        // Tick through production (15s) + some movement time
+        for _ in 0..500 {
             game.tick(50.0);
         }
 
@@ -524,7 +524,7 @@ mod tests {
 
         assert!(thrall_pos.is_some(), "Thrall should exist");
         let (x, y) = thrall_pos.unwrap();
-        // After 10 seconds of movement at speed 3, it should be closer to (12,12)
+        // After movement at speed 3, it should be closer to (12,12)
         let dist_to_rally = ((x - 12.5).powi(2) + (y - 12.5).powi(2)).sqrt();
         let dist_from_cp = ((x - 8.5).powi(2) + (y - 8.5).powi(2)).sqrt();
         assert!(dist_to_rally < dist_from_cp || dist_to_rally < 2.0,
@@ -539,8 +539,8 @@ mod tests {
             prods.0[0].queue_unit(SpriteId::Thrall);
         }
 
-        // Tick through production (10s + buffer)
-        for _ in 0..220 {
+        // Tick through production (15s + buffer)
+        for _ in 0..320 {
             game.tick(50.0);
         }
 

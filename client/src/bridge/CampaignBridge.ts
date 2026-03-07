@@ -26,6 +26,7 @@ import {
     campaign_cmd_dispatch, campaign_cmd_research, campaign_cmd_produce, campaign_cmd_withdraw,
     campaign_battle_cmd_move, campaign_battle_cmd_attack, campaign_battle_cmd_attack_move,
     campaign_battle_cmd_move_units, campaign_battle_cmd_attack_target, campaign_battle_cmd_stop,
+    campaign_battle_cmd_reinforce,
 } from '../pkg/machine_empire_wasm.js';
 
 import { RENDER_ENTRY_SIZE } from '../config';
@@ -445,5 +446,15 @@ export class CampaignBridge {
     /** Stop a unit in a campaign battle. */
     battleCmdStop(battleIndex: number, entityId: number): void {
         campaign_battle_cmd_stop(battleIndex, entityId);
+    }
+
+    /**
+     * Request reinforcements in a campaign battle.
+     * Units are drawn from the player's Node garrison.
+     * @param unitType 0=Thrall, 1=Sentinel, 2=HoverTank.
+     * @returns true on success.
+     */
+    battleCmdReinforce(battleIndex: number, player: number, unitType: number, count: number): boolean {
+        return campaign_battle_cmd_reinforce(battleIndex, player, unitType, count) !== 0;
     }
 }

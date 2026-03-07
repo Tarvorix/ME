@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { tileToScreen } from './IsoUtils';
+import { tileToBattleWorld } from './BattleViewProjection';
 
 interface Particle {
     gfx: Graphics;
@@ -55,12 +55,12 @@ export class ParticleManager {
         const gfx = this.acquire();
         if (!gfx) return;
 
-        const from = tileToScreen(tileX, tileY);
-        const to = tileToScreen(targetTileX, targetTileY);
+        const from = tileToBattleWorld(tileX, tileY);
+        const to = tileToBattleWorld(targetTileX, targetTileY);
 
         gfx.clear();
-        gfx.moveTo(from.sx, from.sy);
-        gfx.lineTo(to.sx, to.sy);
+        gfx.moveTo(from.x, from.y);
+        gfx.lineTo(to.x, to.y);
         gfx.stroke({ width: 2, color: 0xFFFF00, alpha: 0.9 });
 
         this.particles.push({
@@ -68,10 +68,10 @@ export class ParticleManager {
             lifetime: 0,
             maxLifetime: 0.2,
             type: 'muzzleFlash',
-            startX: from.sx,
-            startY: from.sy,
-            endX: to.sx,
-            endY: to.sy,
+            startX: from.x,
+            startY: from.y,
+            endX: to.x,
+            endY: to.y,
         });
     }
 
@@ -82,21 +82,21 @@ export class ParticleManager {
         const gfx = this.acquire();
         if (!gfx) return;
 
-        const pos = tileToScreen(tileX, tileY);
+        const pos = tileToBattleWorld(tileX, tileY);
 
         gfx.clear();
         gfx.circle(0, 0, 8);
         gfx.stroke({ width: 2, color: 0xFF3333, alpha: 0.8 });
-        gfx.x = pos.sx;
-        gfx.y = pos.sy;
+        gfx.x = pos.x;
+        gfx.y = pos.y;
 
         this.particles.push({
             gfx,
             lifetime: 0,
             maxLifetime: 0.4,
             type: 'death',
-            startX: pos.sx,
-            startY: pos.sy,
+            startX: pos.x,
+            startY: pos.y,
             endX: 0,
             endY: 0,
         });
@@ -109,21 +109,21 @@ export class ParticleManager {
         const gfx = this.acquire();
         if (!gfx) return;
 
-        const pos = tileToScreen(tileX, tileY);
+        const pos = tileToBattleWorld(tileX, tileY);
 
         gfx.clear();
         gfx.circle(0, 0, 16);
         gfx.stroke({ width: 2, color: 0x4488FF, alpha: 0.8 });
-        gfx.x = pos.sx;
-        gfx.y = pos.sy;
+        gfx.x = pos.x;
+        gfx.y = pos.y;
 
         this.particles.push({
             gfx,
             lifetime: 0,
             maxLifetime: 0.3,
             type: 'spawn',
-            startX: pos.sx,
-            startY: pos.sy,
+            startX: pos.x,
+            startY: pos.y,
             endX: 0,
             endY: 0,
         });

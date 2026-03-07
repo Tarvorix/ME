@@ -168,9 +168,10 @@ pub fn combat_system(world: &mut World) {
 
                 // Write Shot event
                 let mut payload = [0u8; 16];
-                payload[0..4].copy_from_slice(&target.raw().to_le_bytes());
-                payload[4..8].copy_from_slice(&effective_damage.to_le_bytes());
-                payload[8..10].copy_from_slice(&(attacker_sprite_id as u16).to_le_bytes());
+                payload[0..4].copy_from_slice(&target_x.to_le_bytes());
+                payload[4..8].copy_from_slice(&target_y.to_le_bytes());
+                payload[8..12].copy_from_slice(&effective_damage.to_le_bytes());
+                payload[12..14].copy_from_slice(&(attacker_sprite_id as u16).to_le_bytes());
                 write_event(world, EventType::Shot, entity.raw(), attacker_x, attacker_y, &payload);
 
                 // If target died, clear our target

@@ -1,16 +1,15 @@
-import { Container, Sprite, Assets, Spritesheet, Texture } from 'pixi.js';
+import { Container, Sprite, Graphics, Assets, Spritesheet, Texture } from 'pixi.js';
 import { BufferReader } from '../bridge/BufferReader';
 import { ANIM_NAMES, UNIT_NAMES } from '../bridge/types';
 import type { RenderEntry } from '../bridge/types';
-import { tileToScreen } from './IsoUtils';
-import { DEBUG } from '../config';
+import { DEBUG, PLAYER_COLORS } from '../config';
+import { tileToBattleWorld } from './BattleViewProjection';
 
 /**
- * Maps screen-space Direction enum values to atlas frame direction names.
+ * Maps orthogonal battle-world Direction enum values to atlas frame direction names.
  * The atlas has the horizontal axis mirrored: atlas "E" frames face screen-left,
  * atlas "W" frames face screen-right. N and S are correct.
  * Enum order: S=0, SW=1, W=2, NW=3, N=4, NE=5, E=6, SE=7
- * Mirror:     S,    SE,   E,   NE,   N,   NW,   W,   SW
  */
 const ATLAS_DIR_NAMES = ['S', 'SE', 'E', 'NE', 'N', 'NW', 'W', 'SW'];
 
@@ -35,8 +34,10 @@ const ATLAS_ENTRIES = [
 export class SpritePool {
     readonly container = new Container();
     private sprites = new Map<number, Sprite>();
+    private ownerMarkers = new Map<number, Graphics>();
     private spritesheets = new Map<string, Spritesheet>();
     private entityPositions = new Map<number, { tileX: number; tileY: number }>();
+    private entityOwners = new Map<number, number>();
 
     async loadAtlases(): Promise<void> {
         for (const entry of ATLAS_ENTRIES) {
@@ -75,6 +76,10 @@ export class SpritePool {
 
             let sprite = this.sprites.get(entry.entityId);
             if (!sprite) {
+                const marker = new Graphics();
+                this.container.addChild(marker);
+                this.ownerMarkers.set(entry.entityId, marker);
+
                 sprite = new Sprite();
                 sprite.anchor.set(0.5, 0.75);
                 this.container.addChild(sprite);
@@ -83,6 +88,7 @@ export class SpritePool {
 
             // Store tile position for event processing (muzzle flash targeting)
             this.entityPositions.set(entry.entityId, { tileX: entry.x, tileY: entry.y });
+            this.entityOwners.set(entry.entityId, entry.owner);
 
             this.updateSprite(sprite, entry);
         }
@@ -90,10 +96,17 @@ export class SpritePool {
         // Remove sprites for entities no longer in the buffer
         for (const [id, sprite] of this.sprites) {
             if (!seen.has(id)) {
+                const marker = this.ownerMarkers.get(id);
+                if (marker) {
+                    this.container.removeChild(marker);
+                    marker.destroy();
+                    this.ownerMarkers.delete(id);
+                }
                 this.container.removeChild(sprite);
                 sprite.destroy();
                 this.sprites.delete(id);
                 this.entityPositions.delete(id);
+                this.entityOwners.delete(id);
             }
         }
 
@@ -108,6 +121,10 @@ export class SpritePool {
     /** Get the tile position of an entity from the last render buffer sync. */
     getEntityScreenPosition(entityId: number): { tileX: number; tileY: number } | null {
         return this.entityPositions.get(entityId) ?? null;
+    }
+
+    getEntityOwner(entityId: number): number | null {
+        return this.entityOwners.get(entityId) ?? null;
     }
 
     getEntityAtScreen(worldX: number, worldY: number): number | null {
@@ -140,9 +157,9 @@ export class SpritePool {
     }
 
     private updateSprite(sprite: Sprite, entry: RenderEntry): void {
-        const { sx, sy } = tileToScreen(entry.x, entry.y);
-        sprite.x = sx;
-        sprite.y = sy;
+        const { x, y } = tileToBattleWorld(entry.x, entry.y);
+        sprite.x = x;
+        sprite.y = y;
 
         const animIdx = (entry.flags >> 2) & 0x03;
 
@@ -152,7 +169,40 @@ export class SpritePool {
         }
 
         sprite.scale.set(entry.scale);
-        sprite.zIndex = entry.zOrder;
+        sprite.tint = 0xFFFFFF;
+        this.updateOwnerMarker(entry, sprite, x, y);
+        // Square battle maps should sort front-to-back by screen/world Y.
+        sprite.zIndex = y;
+    }
+
+    private updateOwnerMarker(entry: RenderEntry, sprite: Sprite, x: number, y: number): void {
+        const marker = this.ownerMarkers.get(entry.entityId);
+        if (!marker) return;
+
+        const color = entry.owner === 255
+            ? 0x7F8896
+            : (PLAYER_COLORS[entry.owner] ?? 0xFF8888);
+        const footprint = Math.max(sprite.width, sprite.height * 0.65);
+        const radiusX = Math.max(12, Math.min(34, footprint * 0.18));
+        const radiusY = Math.max(5, radiusX * 0.45);
+
+        marker.clear();
+        marker.x = x;
+        marker.y = y;
+        marker.zIndex = y - 1;
+
+        marker.ellipse(0, 4, radiusX + 2.5, radiusY + 2.5);
+        marker.fill({ color: 0x000000, alpha: 0.22 });
+        marker.stroke({ width: 3, color: 0x000000, alpha: 0.55 });
+
+        marker.ellipse(0, 4, radiusX, radiusY);
+        marker.fill({ color, alpha: entry.owner === 255 ? 0.18 : 0.34 });
+
+        marker.ellipse(0, 4, radiusX, radiusY);
+        marker.stroke({ width: 2, color, alpha: entry.owner === 255 ? 0.6 : 0.95 });
+
+        marker.circle(0, 4, Math.max(3, radiusY - 1));
+        marker.fill({ color, alpha: entry.owner === 255 ? 0.55 : 0.9 });
     }
 
     private getFrameTexture(

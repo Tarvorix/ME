@@ -43,7 +43,7 @@ export class GameFlowController {
 
     // Battle mode resources (created/destroyed on transitions)
     private battleRenderer: GameRenderer | null = null;
-    private currentBattleIndex = -1;
+    private currentBattleSiteId = -1;
 
     // State
     private mode: GameMode = 'campaign';
@@ -201,7 +201,7 @@ export class GameFlowController {
 
         console.log(`Entering battle view: battle index ${battleIndex}`);
         this.mode = 'battle';
-        this.currentBattleIndex = battleIndex;
+        this.currentBattleSiteId = battles[battleIndex].siteId;
 
         // Hide campaign view and minimap, disable campaign camera
         this.campaignRenderer.hide();
@@ -212,7 +212,7 @@ export class GameFlowController {
         // Create battle adapter and renderer
         const adapter = new CampaignBattleAdapter(
             this.campaignBridge,
-            battleIndex,
+            this.currentBattleSiteId,
             this.gameBridge.getMemory(),
         );
 
@@ -234,7 +234,7 @@ export class GameFlowController {
             this.battleRenderer = null;
         }
 
-        this.currentBattleIndex = -1;
+        this.currentBattleSiteId = -1;
         this.mode = 'campaign';
 
         // Show campaign view and minimap, re-enable campaign camera
@@ -268,16 +268,16 @@ export class GameFlowController {
      * Check if the current battle has ended and auto-return to campaign.
      */
     private checkBattleEnd(): void {
-        if (this.currentBattleIndex < 0) return;
+        if (this.currentBattleSiteId < 0) return;
 
         const battles = this.campaignBridge.getActiveBattles();
-        if (this.currentBattleIndex >= battles.length) {
+        const battle = battles.find((activeBattle) => activeBattle.siteId === this.currentBattleSiteId);
+        if (!battle) {
             // Battle no longer in the active list — it ended
             this.returnToCampaign();
             return;
         }
 
-        const battle = battles[this.currentBattleIndex];
         if (battle.status === BattleStatus.Finished) {
             // Battle finished — wait a moment then return
             // For now, return immediately; Chunk 51 will add transition polish

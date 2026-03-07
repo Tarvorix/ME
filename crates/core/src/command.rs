@@ -78,6 +78,13 @@ pub enum Command {
         player: u8,
         site_id: u32,
     },
+    /// Request reinforcements during an RTS battle.
+    /// Units are drawn from the player's campaign Node garrison.
+    RequestReinforcement {
+        player: u8,
+        unit_type: u16,
+        count: u32,
+    },
 }
 
 /// Resource holding pending commands to be processed next tick.

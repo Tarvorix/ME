@@ -161,11 +161,21 @@ export const HUD_STYLES = {
 export const CAMPAIGN_STYLES = {
     // ── Grid Layout ──────────────────────────────────────────────────────
 
-    /** Full-screen grid layout for the campaign HUD. */
+    /** Full-screen grid layout for the campaign HUD. Responsive for mobile. */
     hudGrid: `
         display: grid;
         grid-template-columns: 280px 1fr 240px;
         grid-template-rows: auto 1fr;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    `,
+
+    /** Mobile grid layout (applied via JS when viewport < 768px). */
+    hudGridMobile: `
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
         width: 100%;
         height: 100%;
         pointer-events: none;
@@ -185,6 +195,21 @@ export const CAMPAIGN_STYLES = {
         border-bottom: 1px solid rgba(100,100,120,0.3);
         font-size: 12px;
         pointer-events: auto;
+    `,
+
+    /** Mobile top bar: wraps content, smaller padding. */
+    topBarMobile: `
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background: linear-gradient(180deg, rgba(15,15,25,0.95) 0%, rgba(15,15,25,0.88) 100%);
+        border-bottom: 1px solid rgba(100,100,120,0.3);
+        font-size: 11px;
+        pointer-events: auto;
+        flex-wrap: wrap;
     `,
 
     resourceGroup: `
@@ -226,6 +251,18 @@ export const CAMPAIGN_STYLES = {
         pointer-events: auto;
     `,
 
+    /** Mobile left panel: docked to bottom as a sheet. */
+    leftPanelMobile: `
+        grid-column: 1;
+        grid-row: 3;
+        padding: 8px 10px;
+        background: linear-gradient(0deg, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.90) 100%);
+        border-top: 1px solid rgba(80,80,100,0.3);
+        overflow-y: auto;
+        max-height: 40vh;
+        pointer-events: auto;
+    `,
+
     // ── Right Panel ──────────────────────────────────────────────────────
 
     /** Right sidebar for alerts feed. */
@@ -240,6 +277,11 @@ export const CAMPAIGN_STYLES = {
         display: flex;
         flex-direction: column;
         gap: 4px;
+    `,
+
+    /** Mobile right panel: hidden (alerts shown as toasts or omitted). */
+    rightPanelMobile: `
+        display: none;
     `,
 
     // ── Site Panel (inside left panel) ───────────────────────────────────
@@ -312,8 +354,8 @@ export const CAMPAIGN_STYLES = {
         border: 2px solid rgba(255,68,68,0.6);
         border-radius: 12px;
         text-align: center;
-        min-width: 400px;
-        max-width: 600px;
+        min-width: min(400px, 90vw);
+        max-width: min(600px, 95vw);
         box-shadow: 0 0 40px rgba(255,68,68,0.3), inset 0 0 20px rgba(255,68,68,0.1);
     `,
 
@@ -365,7 +407,7 @@ export const CAMPAIGN_STYLES = {
     `,
 
     researchPanel: `
-        padding: 20px 24px; min-width: 560px; max-width: 640px;
+        padding: 20px 24px; min-width: min(560px, 95vw); max-width: min(640px, 95vw);
         background: rgba(15,15,25,0.96);
         border: 1px solid rgba(100,100,120,0.4);
         border-radius: 8px; font-size: 12px;
@@ -431,7 +473,7 @@ export const CAMPAIGN_STYLES = {
     `,
 
     dispatchDialog: `
-        padding: 20px 24px; min-width: 360px;
+        padding: 20px 24px; min-width: min(360px, 95vw);
         background: rgba(15,15,25,0.96);
         border: 1px solid rgba(100,100,120,0.4);
         border-radius: 8px; font-size: 12px;

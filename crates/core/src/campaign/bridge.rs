@@ -9,6 +9,18 @@ use crate::ai::tactical::{AiControlled, BtTemplateId};
 use crate::ai::player::AiDifficulty;
 use super::map::{CampaignSite, GarrisonedUnit};
 
+/// Map campaign player IDs onto local 2-player battle slots.
+/// Local player 0 is reserved for the human side when player 0 is involved.
+pub fn battle_local_slots(attacker: u8, defender: u8) -> (u8, u8) {
+    if attacker == 0 {
+        (0, 1)
+    } else if defender == 0 {
+        (1, 0)
+    } else {
+        (0, 1)
+    }
+}
+
 /// Request to create a battle from campaign context.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BattleRequest {
@@ -55,22 +67,25 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
     // Set up deployment state
     let mut deployment = DeploymentState::with_map_size(2, 64, 64);
 
-    // Determine which players are AI-controlled (player 0 = human)
-    let attacker_is_ai = request.attacker != 0;
-    let defender_is_ai = request.defender != 0 && request.defender != 255;
-
     // Compute spawn centers for each zone so AI can be given attack targets
     let zone0_cx = deployment.zones[0].center_x;
     let zone0_cy = deployment.zones[0].center_y;
     let zone1_cx = deployment.zones[1].center_x;
     let zone1_cy = deployment.zones[1].center_y;
 
-    // Spawn attacker forces at zone 0
-    let cp0 = spawn_force(&mut game, request.attacker, &request.attacker_forces, zone0_cx, zone0_cy, attacker_is_ai);
+    let (local_attacker, _) = battle_local_slots(request.attacker, request.defender);
+    let slot0_campaign_player = if local_attacker == 0 { request.attacker } else { request.defender };
+    let slot1_campaign_player = if local_attacker == 1 { request.attacker } else { request.defender };
+    let slot0_forces = if local_attacker == 0 { &request.attacker_forces } else { &request.defender_forces };
+    let slot1_forces = if local_attacker == 1 { &request.attacker_forces } else { &request.defender_forces };
+    let slot0_is_ai = slot0_campaign_player != 0 && slot0_campaign_player != 255;
+    let slot1_is_ai = slot1_campaign_player != 0 && slot1_campaign_player != 255;
+
+    // Spawn the local player-0 side at zone 0 and the opposing side at zone 1.
+    let cp0 = spawn_force(&mut game, 0, slot0_forces, zone0_cx, zone0_cy, slot0_is_ai);
     deployment.command_posts[0] = Some(cp0);
 
-    // Spawn defender forces at zone 1
-    let cp1 = spawn_force(&mut game, request.defender, &request.defender_forces, zone1_cx, zone1_cy, defender_is_ai);
+    let cp1 = spawn_force(&mut game, 1, slot1_forces, zone1_cx, zone1_cy, slot1_is_ai);
     deployment.command_posts[1] = Some(cp1);
 
     deployment.confirmed = vec![true, true]; // Auto-confirm for campaign battles
@@ -83,11 +98,11 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
     game.world.insert_resource(battle_state);
 
     // Register AI players for tactical and strategic systems
-    if attacker_is_ai {
-        game.add_ai_player(request.attacker, AiDifficulty::Normal);
+    if slot0_is_ai {
+        game.add_ai_player(0, AiDifficulty::Normal);
     }
-    if defender_is_ai {
-        game.add_ai_player(request.defender, AiDifficulty::Normal);
+    if slot1_is_ai {
+        game.add_ai_player(1, AiDifficulty::Normal);
     }
 
     // Give AI units an initial assigned_pos pointing toward the enemy spawn.
@@ -107,8 +122,8 @@ pub fn create_battle_from_campaign(request: &BattleRequest) -> Game {
         };
 
         for (entity, owner) in ai_entities {
-            // Attacker (zone 0) → target zone 1 center, Defender (zone 1) → target zone 0 center
-            let (target_x, target_y) = if owner == request.attacker {
+            // Local player 0 (zone 0) → target zone 1 center, local player 1 → target zone 0 center
+            let (target_x, target_y) = if owner == 0 {
                 (zone1_cx, zone1_cy)
             } else {
                 (zone0_cx, zone0_cy)
@@ -168,7 +183,14 @@ pub fn extract_battle_result(game: &Game, site_id: u32, attacker: u8, defender: 
         return None;
     }
 
-    let winner = bs.winner;
+    let (local_attacker, local_defender) = battle_local_slots(attacker, defender);
+    let winner = if bs.winner == local_attacker {
+        attacker
+    } else if bs.winner == local_defender {
+        defender
+    } else {
+        bs.winner
+    };
     let victory_reason = bs.victory_reason.unwrap_or(VictoryReason::TotalElimination);
 
     // Count surviving units per player
@@ -199,9 +221,9 @@ pub fn extract_battle_result(game: &Game, site_id: u32, attacker: u8, defender: 
             continue;
         }
 
-        let target = if ut.owner == attacker {
+        let target = if ut.owner == local_attacker {
             &mut attacker_survivors
-        } else if ut.owner == defender {
+        } else if ut.owner == local_defender {
             &mut defender_survivors
         } else {
             continue;
@@ -304,6 +326,33 @@ mod tests {
             .filter(|(_, ut)| ut.owner == 1)
             .count();
         assert_eq!(defender_count, 11, "Defender should have 11 entities, got {}", defender_count);
+    }
+
+    #[test]
+    fn test_human_defender_is_local_player_zero() {
+        let request = BattleRequest {
+            site_id: 9,
+            attacker: 2,
+            defender: 0,
+            attacker_forces: vec![GarrisonedUnit::new(0, 4)],
+            defender_forces: vec![GarrisonedUnit::new(0, 3)],
+            map_seed: 99,
+        };
+        let game = create_battle_from_campaign(&request);
+        let ut_storage = game.world.get_storage::<UnitType>().unwrap();
+
+        let owners: std::collections::HashSet<u8> = ut_storage.iter()
+            .filter(|(_, ut)| ut.kind != SpriteId::CapturePoint)
+            .map(|(_, ut)| ut.owner)
+            .collect();
+        assert!(owners.contains(&0));
+        assert!(owners.contains(&1));
+        assert_eq!(owners.len(), 2, "Campaign battles should localize owners to two battle slots");
+
+        let local_zero_count = ut_storage.iter().filter(|(_, ut)| ut.owner == 0).count();
+        let local_one_count = ut_storage.iter().filter(|(_, ut)| ut.owner == 1).count();
+        assert_eq!(local_zero_count, 4, "Human defender should become local player 0 (3 units + CP)");
+        assert_eq!(local_one_count, 5, "Attacker should become local player 1 (4 units + CP)");
     }
 
     #[test]

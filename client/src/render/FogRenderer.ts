@@ -1,6 +1,6 @@
 import { Container, Sprite, Texture, CanvasSource } from 'pixi.js';
-import { tileToScreen } from './IsoUtils';
-import { TILE_WIDTH, TILE_HEIGHT } from '../config';
+import { TILE_WIDTH } from '../config';
+import { tileToBattleCellOrigin } from './BattleViewProjection';
 import type { GameBridge } from '../bridge/GameBridge';
 
 /** Fog visibility states matching Rust FOG_* constants. */
@@ -9,16 +9,16 @@ const FOG_EXPLORED = 1;
 const FOG_VISIBLE = 2;
 
 /**
- * Renders per-tile fog of war overlay as isometric diamond sprites.
- * Unexplored = fully black diamond, Explored = semi-transparent black, Visible = transparent (hidden).
+ * Renders per-tile fog of war overlay as square battle cells.
+ * Unexplored = fully black square, Explored = semi-transparent black, Visible = transparent (hidden).
  * Only updates tiles that changed state since last frame for performance.
  */
 export class FogRenderer {
     readonly container = new Container();
     private sprites: Sprite[] = [];
     private prevStates: Uint8Array | null = null;
-    private fogFullTex!: Texture; // Fully black diamond (unexplored)
-    private fogHalfTex!: Texture; // 50% black diamond (explored)
+    private fogFullTex!: Texture; // Fully black square (unexplored)
+    private fogHalfTex!: Texture; // 50% black square (explored)
     private mapWidth = 0;
     private mapHeight = 0;
 
@@ -26,9 +26,9 @@ export class FogRenderer {
         this.mapWidth = bridge.getMapWidth();
         this.mapHeight = bridge.getMapHeight();
 
-        // Create fog diamond textures
-        this.fogFullTex = this.createFogDiamond(1.0); // Fully opaque black
-        this.fogHalfTex = this.createFogDiamond(0.5); // 50% opacity black
+        // Create square fog textures
+        this.fogFullTex = this.createFogTile(1.0); // Fully opaque black
+        this.fogHalfTex = this.createFogTile(0.5); // 50% opacity black
 
         const total = this.mapWidth * this.mapHeight;
         this.prevStates = new Uint8Array(total);
@@ -39,10 +39,10 @@ export class FogRenderer {
         for (let y = 0; y < this.mapHeight; y++) {
             for (let x = 0; x < this.mapWidth; x++) {
                 const sprite = new Sprite(this.fogFullTex);
-                const { sx, sy } = tileToScreen(x, y);
-                sprite.anchor.set(0.5, 0);
-                sprite.x = sx;
-                sprite.y = sy;
+                const { x: worldX, y: worldY } = tileToBattleCellOrigin(x, y);
+                sprite.anchor.set(0, 0);
+                sprite.x = worldX;
+                sprite.y = worldY;
                 sprite.visible = true; // Starts visible (unexplored = black)
                 this.sprites.push(sprite);
                 this.container.addChild(sprite);
@@ -84,24 +84,16 @@ export class FogRenderer {
     }
 
     /**
-     * Create an isometric diamond texture filled with black at the given opacity.
+     * Create a square battle-cell texture filled with black at the given opacity.
      */
-    private createFogDiamond(alpha: number): Texture {
+    private createFogTile(alpha: number): Texture {
         const canvas = document.createElement('canvas');
         canvas.width = TILE_WIDTH;
-        canvas.height = TILE_HEIGHT;
+        canvas.height = TILE_WIDTH;
         const ctx = canvas.getContext('2d')!;
 
-        // Diamond path
-        ctx.beginPath();
-        ctx.moveTo(TILE_WIDTH / 2, 0);
-        ctx.lineTo(TILE_WIDTH, TILE_HEIGHT / 2);
-        ctx.lineTo(TILE_WIDTH / 2, TILE_HEIGHT);
-        ctx.lineTo(0, TILE_HEIGHT / 2);
-        ctx.closePath();
-
         ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
-        ctx.fill();
+        ctx.fillRect(0, 0, TILE_WIDTH, TILE_WIDTH);
 
         const source = new CanvasSource({ resource: canvas });
         return new Texture({ source });
