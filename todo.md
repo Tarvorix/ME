@@ -669,3 +669,22 @@ Design doc Section 4.4 "Reinforcements: The Meatgrinder" — should have been im
 ## Chunk 73: Repo Agent Guide
 - [x] Create root `AGENTS.md` carrying forward the `CLAUDE.md` operating rules
 - [x] Add repo-specific notes for RTS/campaign scoping, WASM rebuilds, verification, and deployment
+
+## Chunk 74: RTS Ghost Targeting and Auto-Engage Fix
+- [x] Confirm root cause of black-circle RTS ghosts and document the fix scope
+- [x] Prevent neutral capture points and dead/dying entities from being valid attack targets in RTS combat, AI, and click targeting
+- [x] Render capture points intentionally so objectives no longer appear as ghost circles
+- [x] Add an RTS auto-engage/defend control that works on smaller screens
+- [x] Verify with focused tests plus `cargo test`, `npm run wasm:build`, and `npm run build`
+
+## Chunk 75: RTS Combat Loop Re-evaluation
+- [x] Confirm the combat-loop regression root cause across movement, death cleanup, commands, and rendering
+- [x] Freeze dead entities immediately so they cannot keep moving, attacking, or re-entering death logic
+- [x] Prevent local selection/orders from targeting dead or dying friendly units
+- [x] Add regression coverage for repeated death/moving-corpse failures
+- [x] Verify with focused tests plus `cargo test`, `npm run wasm:build`, and `npm run build`
+
+## Chunk 76: RTS Release Refresh
+- [x] Refresh generated WASM package in `client/src/pkg`
+- [x] Review the staged RTS battle changes for commit readiness
+- [x] Commit the current RTS fixes with Tarvorix git identity and push to `main`

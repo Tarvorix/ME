@@ -1,6 +1,6 @@
 use crate::ecs::World;
 use crate::ecs::entity::Entity;
-use crate::components::{Health, RenderState, UnitType, Position, DeathTimer};
+use crate::components::{Health, RenderState, UnitType, Position, DeathTimer, PathState, CombatState, AttackMoveTarget};
 use crate::game::{TickDelta, write_event};
 use crate::types::{AnimState, EventType, SpriteId, get_frame_count};
 
@@ -44,6 +44,17 @@ pub fn death_cleanup_system(world: &mut World) {
     };
 
     for (entity, sprite_id, x, y) in &newly_dead {
+        // Freeze the corpse immediately so later systems cannot keep advancing stale orders.
+        if let Some(path_state) = world.get_component_mut::<PathState>(*entity) {
+            path_state.clear();
+        }
+        if let Some(combat_state) = world.get_component_mut::<CombatState>(*entity) {
+            combat_state.target = None;
+            combat_state.in_range = false;
+            combat_state.attack_cooldown = 0.0;
+        }
+        world.remove_component::<AttackMoveTarget>(*entity);
+
         // Set death animation
         if let Some(rs) = world.get_component_mut::<RenderState>(*entity) {
             rs.anim_state = AnimState::Death;

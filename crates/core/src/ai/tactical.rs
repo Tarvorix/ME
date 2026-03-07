@@ -7,6 +7,7 @@ use crate::ai::behavior_tree::{
     BehaviorTree, BtContext, BtState, evaluate, build_combat_bt,
 };
 use crate::ai::influence_map::{InfluenceGrid, INFLUENCE_UPDATE_INTERVAL};
+use crate::targeting::is_entity_attackable;
 
 /// Identifies which behavior tree template an AI entity uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -150,11 +151,11 @@ pub fn ai_tactical_system(world: &mut World) {
         return;
     }
 
-    // Collect all living entities for nearest-enemy lookup
-    let all_units: Vec<(Entity, f32, f32, u8, bool)> = {
+    // Collect all living attackable entities for nearest-enemy lookup.
+    // Neutral objectives like capture points must not become auto-attack targets.
+    let all_units: Vec<(Entity, f32, f32, u8)> = {
         let pos_storage = world.get_storage::<Position>().unwrap();
         let ut_storage = world.get_storage::<UnitType>().unwrap();
-        let health_storage = world.get_storage::<Health>();
 
         let mut units = Vec::new();
         for (entity, pos) in pos_storage.iter() {
@@ -163,18 +164,11 @@ pub fn ai_tactical_system(world: &mut World) {
                 None => continue,
             };
 
-            let alive = if let Some(hs) = &health_storage {
-                hs.get(entity).map(|h| !h.is_dead()).unwrap_or(true)
-            } else {
-                true
-            };
+            if !is_entity_attackable(world, entity) {
+                continue;
+            }
 
-            if !alive { continue; }
-
-            let bp = get_blueprint(ut.kind);
-            let is_combat = bp.damage > 0.0 || bp.speed > 0.0; // Include mobile units
-
-            units.push((entity, pos.x, pos.y, ut.owner, is_combat));
+            units.push((entity, pos.x, pos.y, ut.owner));
         }
         units
     };
@@ -218,7 +212,7 @@ pub fn ai_tactical_system(world: &mut World) {
             ctx.target = Some(target_entity);
 
             // Find target position and alive status
-            if let Some((_, tx, ty, _, _)) = all_units.iter().find(|(e, _, _, _, _)| *e == target_entity) {
+            if let Some((_, tx, ty, _)) = all_units.iter().find(|(e, _, _, _)| *e == target_entity) {
                 ctx.target_x = *tx;
                 ctx.target_y = *ty;
                 ctx.target_alive = true;
@@ -231,7 +225,7 @@ pub fn ai_tactical_system(world: &mut World) {
 
         // Find nearest visible enemy
         let mut nearest_dist = f32::MAX;
-        for &(e, ex, ey, e_owner, _) in &all_units {
+        for &(e, ex, ey, e_owner) in &all_units {
             if e_owner == owner { continue; } // Skip friendlies
             let dist = ((px - ex).powi(2) + (py - ey).powi(2)).sqrt();
             if dist <= vision_range && dist < nearest_dist {
@@ -504,5 +498,22 @@ mod tests {
         // Dead AI should not generate commands
         let pending = game.world.get_resource::<PendingCommands>().unwrap();
         assert!(pending.0.is_empty(), "Dead AI should not generate commands");
+    }
+
+    #[test]
+    fn test_ai_ignores_neutral_capture_points() {
+        let mut game = test_game_with_ai();
+
+        let _ai = spawn_ai_thrall(&mut game, 10.5, 10.5, 0);
+        game.spawn_unit(SpriteId::CapturePoint, 14.5, 10.5, 255);
+
+        game.tick(50.0);
+
+        let pending = game.world.get_resource::<PendingCommands>().unwrap();
+        assert!(
+            pending.0.is_empty(),
+            "Neutral capture points should not trigger AI attack commands, got: {:?}",
+            pending.0,
+        );
     }
 }

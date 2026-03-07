@@ -5,6 +5,7 @@ use crate::blueprints::get_blueprint;
 use crate::game::{TickDelta, write_event};
 use crate::map::{BattleMap, damage_reduction, TerrainType, HAZARD_DPS};
 use crate::pathfinding::find_path;
+use crate::targeting::{is_entity_alive, is_hostile_attack_target};
 use crate::types::{AnimState, Direction, EventType, SpriteId};
 
 pub fn combat_system(world: &mut World) {
@@ -26,7 +27,7 @@ pub fn combat_system(world: &mut World) {
     };
 
     for (entity, target_opt, _cooldown) in combat_entities {
-        if !world.is_alive(entity) {
+        if !is_entity_alive(world, entity) {
             continue;
         }
 
@@ -47,8 +48,13 @@ pub fn combat_system(world: &mut World) {
             }
         };
 
+        let attacker_unit = match world.get_component::<UnitType>(entity) {
+            Some(ut) => (ut.kind, ut.owner),
+            None => continue,
+        };
+
         let target = match effective_target {
-            Some(t) if world.is_alive(t) => t,
+            Some(t) if is_hostile_attack_target(world, attacker_unit.1, t) => t,
             Some(_) => {
                 // Target is dead — clear it
                 if let Some(cs) = world.get_component_mut::<CombatState>(entity) {
@@ -81,11 +87,7 @@ pub fn combat_system(world: &mut World) {
             None => continue,
         };
 
-        let attacker_sprite_id = match world.get_component::<UnitType>(entity) {
-            Some(ut) => ut.kind,
-            None => continue,
-        };
-
+        let attacker_sprite_id = attacker_unit.0;
         let bp = get_blueprint(attacker_sprite_id);
         if bp.damage <= 0.0 {
             continue; // Buildings with no damage
@@ -279,8 +281,6 @@ fn find_nearest_enemy(world: &World, entity: Entity) -> Option<Entity> {
     let vision_sq = vision * vision;
 
     let pos_storage = world.get_storage::<Position>()?;
-    let ut_storage = world.get_storage::<UnitType>()?;
-    let health_storage = world.get_storage::<Health>()?;
 
     let mut closest: Option<(Entity, f32)> = None;
 
@@ -289,20 +289,8 @@ fn find_nearest_enemy(world: &World, entity: Entity) -> Option<Entity> {
             continue;
         }
 
-        // Must be an enemy
-        let other_owner = match ut_storage.get(other) {
-            Some(ut) => ut.owner,
-            None => continue,
-        };
-        if other_owner == my_owner {
+        if !is_hostile_attack_target(world, my_owner, other) {
             continue;
-        }
-
-        // Must be alive
-        if let Some(h) = health_storage.get(other) {
-            if h.is_dead() {
-                continue;
-            }
         }
 
         let dx = pos.x - my_x;
@@ -365,6 +353,39 @@ fn apply_hazard_damage(world: &mut World, delta_secs: f32) {
         if let Some(health) = world.get_component_mut::<Health>(entity) {
             health.current -= damage;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::Command;
+    use crate::game::{Game, GameConfig};
+
+    fn test_game() -> Game {
+        Game::new(GameConfig {
+            map_width: 32,
+            map_height: 32,
+            player_count: 2,
+            seed: 42,
+        })
+    }
+
+    #[test]
+    fn attack_move_ignores_neutral_capture_points() {
+        let mut game = test_game();
+        let attacker = game.spawn_thrall(5.5, 5.5, 0);
+        let capture_point = game.spawn_unit(SpriteId::CapturePoint, 8.5, 5.5, 255);
+
+        game.push_command(Command::AttackMove {
+            unit_ids: vec![attacker.raw()],
+            target_x: 12.5,
+            target_y: 5.5,
+        });
+        game.tick(50.0);
+
+        let combat_state = game.world.get_component::<CombatState>(attacker).unwrap();
+        assert_ne!(combat_state.target, Some(capture_point));
     }
 }
 

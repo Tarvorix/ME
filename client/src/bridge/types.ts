@@ -18,6 +18,7 @@ export enum SpriteType {
     HoverTank = 2,
     CommandPost = 3,
     Node = 4,
+    CapturePoint = 5,
 }
 
 export enum Direction {
@@ -44,6 +45,7 @@ export const UNIT_NAMES: Record<number, string> = {
     2: 'hover_tank',
     3: 'command_post',
     4: 'forge',
+    5: 'capture_point',
 };
 
 export enum EventType {

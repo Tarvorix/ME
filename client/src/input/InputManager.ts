@@ -11,6 +11,7 @@ import { battleWorldToTile } from '../render/BattleViewProjection';
  * Handles user input: selection (single, multi, box), movement, touch gestures.
  * Left-click: select, Shift+click: toggle, Drag: selection box.
  * Right-click / touch long-press: move order for all selected.
+ * Defend: selected units hold their current ground and auto-engage nearby enemies.
  */
 export class InputManager {
     private selectedEntities = new Set<number>();
@@ -89,6 +90,18 @@ export class InputManager {
         this.touchHandler.destroy();
     }
 
+    issueDefendOrder(): void {
+        if (this.selectedEntities.size === 0) return;
+
+        for (const entityId of this.selectedEntities) {
+            const sprite = this.spritePool.getSprite(entityId);
+            if (!sprite) continue;
+
+            const { tx, ty } = battleWorldToTile(sprite.x, sprite.y);
+            this.bridge.cmdAttackMove(entityId, tx, ty);
+        }
+    }
+
     private onPointerDown = (e: PointerEvent): void => {
         // Ignore touch events (handled by TouchHandler)
         if (e.pointerType === 'touch') return;
@@ -157,10 +170,8 @@ export class InputManager {
         const ids = Array.from(this.selectedEntities);
 
         // Check if right-clicking on an enemy unit — if so, attack instead of move
-        const targetEntityId = this.spritePool.getEntityAtScreen(wx, wy);
-        const targetOwner = targetEntityId !== null ? this.spritePool.getEntityOwner(targetEntityId) : null;
-        if (targetEntityId !== null && targetOwner !== null && targetOwner !== 0) {
-            // Right-clicked an entity that is NOT in our selection — attack it
+        const targetEntityId = this.spritePool.getAttackableEnemyAtScreen(wx, wy, 0);
+        if (targetEntityId !== null) {
             this.bridge.cmdAttackTarget(ids, targetEntityId);
             return;
         }
@@ -238,6 +249,6 @@ export class InputManager {
     }
 
     private isControllableEntity(entityId: number): boolean {
-        return this.spritePool.getEntityOwner(entityId) === 0;
+        return this.spritePool.isCommandableEntity(entityId, 0);
     }
 }

@@ -779,6 +779,86 @@ mod tests {
     }
 
     #[test]
+    fn test_dead_units_freeze_after_death() {
+        let mut game = Game::new(test_config());
+        let attacker = game.spawn_thrall(1.5, 1.5, 0);
+        let target = game.spawn_thrall(3.5, 1.5, 1);
+
+        game.push_command(Command::Move {
+            unit_ids: vec![target.raw()],
+            target_x: 12.5,
+            target_y: 1.5,
+        });
+        game.tick(50.0);
+
+        if let Some(h) = game.world.get_component_mut::<Health>(target) {
+            h.current = 1.0;
+        }
+
+        game.push_command(Command::Attack {
+            unit_ids: vec![attacker.raw()],
+            target_id: target.raw(),
+        });
+        game.tick(50.0);
+
+        let death_pos = {
+            let pos = game.world.get_component::<Position>(target).unwrap();
+            (pos.x, pos.y)
+        };
+
+        for _ in 0..5 {
+            game.tick(50.0);
+            if let Some(pos) = game.world.get_component::<Position>(target) {
+                assert!(
+                    (pos.x - death_pos.0).abs() < 0.001 && (pos.y - death_pos.1).abs() < 0.001,
+                    "Dead units should stay frozen at the death position",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_death_event_only_emits_once_for_dead_unit() {
+        let mut game = Game::new(test_config());
+        let attacker = game.spawn_thrall(1.5, 1.5, 0);
+        let target = game.spawn_thrall(3.5, 1.5, 1);
+
+        game.push_command(Command::Move {
+            unit_ids: vec![target.raw()],
+            target_x: 12.5,
+            target_y: 1.5,
+        });
+        game.tick(50.0);
+
+        if let Some(h) = game.world.get_component_mut::<Health>(target) {
+            h.current = 1.0;
+        }
+
+        let mut death_events = 0;
+
+        game.push_command(Command::Attack {
+            unit_ids: vec![attacker.raw()],
+            target_id: target.raw(),
+        });
+
+        for _ in 0..6 {
+            game.tick(50.0);
+
+            let event_count = game.world.get_resource::<EventCount>().unwrap().0 as usize;
+            let eb = game.world.get_resource::<EventBuffer>().unwrap();
+            for event_index in 0..event_count {
+                let offset = event_index * EVENT_ENTRY_SIZE;
+                let event_type = u16::from_le_bytes([eb.0[offset], eb.0[offset + 1]]);
+                if event_type == EventType::Death as u16 {
+                    death_events += 1;
+                }
+            }
+        }
+
+        assert_eq!(death_events, 1, "Death should emit exactly once per unit death");
+    }
+
+    #[test]
     fn test_event_count_resets() {
         let mut game = Game::new(test_config());
         let attacker = game.spawn_thrall(5.5, 5.5, 0);

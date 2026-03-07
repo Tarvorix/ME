@@ -23,8 +23,18 @@ export interface SelectionInfo {
 /**
  * Bottom-left selection panel: shows selected unit info.
  */
-export function SelectionPanel({ info }: { info: SelectionInfo }) {
+export function SelectionPanel(
+    { info, onDefendSelection }: { info: SelectionInfo; onDefendSelection?: () => void },
+) {
     if (info.count === 0) return null;
+
+    const commandRow = onDefendSelection ? html`
+        <div style=${HUD_STYLES.commandRow}>
+            <button type="button" style=${HUD_STYLES.commandButton} onClick=${onDefendSelection}>
+                Defend
+            </button>
+        </div>
+    ` : null;
 
     if (info.count === 1 && info.singleName) {
         const hpPct = info.singleMaxHp ? Math.round((info.singleHp ?? 0) / info.singleMaxHp * 100) : 100;
@@ -43,6 +53,7 @@ export function SelectionPanel({ info }: { info: SelectionInfo }) {
                         <span style="font-size: 11px; color: #aaa">${Math.round(info.singleHp ?? 0)}/${info.singleMaxHp}</span>
                     </div>
                 </div>
+                ${commandRow}
             </div>
         `;
     }
@@ -64,6 +75,7 @@ export function SelectionPanel({ info }: { info: SelectionInfo }) {
                     <div style="margin: 2px 0">${count}x ${name}</div>
                 `)}
             </div>
+            ${commandRow}
         </div>
     `;
 }

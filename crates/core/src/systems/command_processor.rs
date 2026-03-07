@@ -4,6 +4,7 @@ use crate::command::{Command, PendingCommands};
 use crate::components::{Position, PathState, CombatState, AttackMoveTarget};
 use crate::map::BattleMap;
 use crate::pathfinding::find_path;
+use crate::targeting::{is_entity_alive, is_hostile_attack_target};
 use crate::types::SpriteId;
 use crate::systems::production::Productions;
 
@@ -75,7 +76,7 @@ fn process_move(world: &mut World, unit_ids: &[u32], target_x: f32, target_y: f3
 
     for &raw_id in unit_ids {
         let entity = Entity::from_raw(raw_id);
-        if !world.is_alive(entity) {
+        if !is_entity_alive(world, entity) {
             continue;
         }
 
@@ -106,12 +107,22 @@ fn process_move(world: &mut World, unit_ids: &[u32], target_x: f32, target_y: f3
                 path_state.current_index = 1; // skip start tile (we're already there)
             }
         }
+
+        if let Some(cs) = world.get_component_mut::<CombatState>(entity) {
+            cs.target = None;
+            cs.in_range = false;
+        }
+
+        world.remove_component::<AttackMoveTarget>(entity);
     }
 }
 
 fn process_stop(world: &mut World, unit_ids: &[u32]) {
     for &raw_id in unit_ids {
         let entity = Entity::from_raw(raw_id);
+        if !is_entity_alive(world, entity) {
+            continue;
+        }
         if let Some(path_state) = world.get_component_mut::<PathState>(entity) {
             path_state.clear();
         }
@@ -127,18 +138,10 @@ fn process_stop(world: &mut World, unit_ids: &[u32]) {
 
 fn process_attack(world: &mut World, unit_ids: &[u32], target_id: u32) {
     let target = Entity::from_raw(target_id);
-    if !world.is_alive(target) {
-        return;
-    }
-
-    let target_owner = match world.get_component::<crate::components::UnitType>(target) {
-        Some(ut) => ut.owner,
-        None => return,
-    };
 
     for &raw_id in unit_ids {
         let entity = Entity::from_raw(raw_id);
-        if !world.is_alive(entity) {
+        if !is_entity_alive(world, entity) {
             continue;
         }
 
@@ -146,7 +149,7 @@ fn process_attack(world: &mut World, unit_ids: &[u32], target_id: u32) {
             Some(ut) => ut.owner,
             None => continue,
         };
-        if attacker_owner == target_owner {
+        if !is_hostile_attack_target(world, attacker_owner, target) {
             continue;
         }
 
@@ -173,7 +176,7 @@ fn process_attack_move(world: &mut World, unit_ids: &[u32], target_x: f32, targe
     // Add AttackMoveTarget component so combat system knows to engage enemies en route
     for &raw_id in unit_ids {
         let entity = Entity::from_raw(raw_id);
-        if !world.is_alive(entity) {
+        if !is_entity_alive(world, entity) {
             continue;
         }
         world.add_component(entity, AttackMoveTarget { x: target_x, y: target_y });
@@ -246,5 +249,64 @@ fn process_set_rally(world: &mut World, player: u8, x: f32, y: f32) {
             prods.0[idx].rally_x = x;
             prods.0[idx].rally_y = y;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::Command;
+    use crate::game::{Game, GameConfig};
+    use crate::types::SpriteId;
+
+    fn test_game() -> Game {
+        Game::new(GameConfig {
+            map_width: 32,
+            map_height: 32,
+            player_count: 2,
+            seed: 42,
+        })
+    }
+
+    #[test]
+    fn move_orders_clear_attack_move_stance() {
+        let mut game = test_game();
+        let unit = game.spawn_thrall(5.5, 5.5, 0);
+
+        game.push_command(Command::AttackMove {
+            unit_ids: vec![unit.raw()],
+            target_x: 10.5,
+            target_y: 5.5,
+        });
+        game.tick(50.0);
+        assert!(game.world.has_component::<AttackMoveTarget>(unit));
+
+        game.push_command(Command::Move {
+            unit_ids: vec![unit.raw()],
+            target_x: 12.5,
+            target_y: 5.5,
+        });
+        game.tick(50.0);
+
+        assert!(
+            !game.world.has_component::<AttackMoveTarget>(unit),
+            "Move orders should clear the defend/attack-move stance",
+        );
+    }
+
+    #[test]
+    fn explicit_attack_rejects_neutral_objectives() {
+        let mut game = test_game();
+        let attacker = game.spawn_thrall(5.5, 5.5, 0);
+        let capture_point = game.spawn_unit(SpriteId::CapturePoint, 8.5, 5.5, 255);
+
+        game.push_command(Command::Attack {
+            unit_ids: vec![attacker.raw()],
+            target_id: capture_point.raw(),
+        });
+        game.tick(50.0);
+
+        let combat_state = game.world.get_component::<CombatState>(attacker).unwrap();
+        assert_eq!(combat_state.target, None);
     }
 }

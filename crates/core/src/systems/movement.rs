@@ -1,6 +1,7 @@
 use crate::ecs::World;
 use crate::components::{Position, PreviousPosition, PathState, RenderState, UnitType};
 use crate::map::{BattleMap, movement_cost};
+use crate::targeting::is_entity_alive;
 use crate::types::{AnimState, Direction, SpriteId};
 use crate::game::TickDelta;
 
@@ -18,7 +19,7 @@ pub fn movement_system(world: &mut World) {
     // Collect entities with paths to process
     let entities_with_paths: Vec<_> = if let Some(storage) = world.get_storage::<PathState>() {
         storage.iter()
-            .filter(|(_, ps)| ps.has_path())
+            .filter(|(entity, ps)| ps.has_path() && is_entity_alive(world, *entity))
             .map(|(entity, _)| entity)
             .collect()
     } else {
@@ -136,7 +137,7 @@ pub fn movement_system(world: &mut World) {
     // Set idle state for entities without paths
     let idle_entities: Vec<_> = if let Some(storage) = world.get_storage::<PathState>() {
         storage.iter()
-            .filter(|(_, ps)| !ps.has_path())
+            .filter(|(entity, ps)| !ps.has_path() && is_entity_alive(world, *entity))
             .map(|(entity, _)| entity)
             .collect()
     } else {

@@ -1,6 +1,6 @@
 import { Container, Sprite, Graphics, Assets, Spritesheet, Texture } from 'pixi.js';
 import { BufferReader } from '../bridge/BufferReader';
-import { ANIM_NAMES, UNIT_NAMES } from '../bridge/types';
+import { ANIM_NAMES, AnimState, SpriteType, UNIT_NAMES } from '../bridge/types';
 import type { RenderEntry } from '../bridge/types';
 import { DEBUG, PLAYER_COLORS } from '../config';
 import { tileToBattleWorld } from './BattleViewProjection';
@@ -35,9 +35,13 @@ export class SpritePool {
     readonly container = new Container();
     private sprites = new Map<number, Sprite>();
     private ownerMarkers = new Map<number, Graphics>();
+    private objectiveMarkers = new Map<number, Graphics>();
     private spritesheets = new Map<string, Spritesheet>();
     private entityPositions = new Map<number, { tileX: number; tileY: number }>();
     private entityOwners = new Map<number, number>();
+    private entityKinds = new Map<number, number>();
+    private entityFlags = new Map<number, number>();
+    private entityHealth = new Map<number, number>();
 
     async loadAtlases(): Promise<void> {
         for (const entry of ATLAS_ENTRIES) {
@@ -89,6 +93,9 @@ export class SpritePool {
             // Store tile position for event processing (muzzle flash targeting)
             this.entityPositions.set(entry.entityId, { tileX: entry.x, tileY: entry.y });
             this.entityOwners.set(entry.entityId, entry.owner);
+            this.entityKinds.set(entry.entityId, entry.spriteId);
+            this.entityFlags.set(entry.entityId, entry.flags);
+            this.entityHealth.set(entry.entityId, entry.healthPct);
 
             this.updateSprite(sprite, entry);
         }
@@ -105,8 +112,12 @@ export class SpritePool {
                 this.container.removeChild(sprite);
                 sprite.destroy();
                 this.sprites.delete(id);
+                this.removeObjectiveMarker(id);
                 this.entityPositions.delete(id);
                 this.entityOwners.delete(id);
+                this.entityKinds.delete(id);
+                this.entityFlags.delete(id);
+                this.entityHealth.delete(id);
             }
         }
 
@@ -128,10 +139,40 @@ export class SpritePool {
     }
 
     getEntityAtScreen(worldX: number, worldY: number): number | null {
+        return this.findEntityAtScreen(worldX, worldY);
+    }
+
+    getAttackableEnemyAtScreen(worldX: number, worldY: number, localOwner: number): number | null {
+        return this.findEntityAtScreen(worldX, worldY, (id) => {
+            if (!this.isEntityInteractable(id)) return false;
+
+            const owner = this.entityOwners.get(id);
+            const kind = this.entityKinds.get(id);
+
+            return owner !== undefined &&
+                owner !== localOwner &&
+                owner !== 255 &&
+                kind !== SpriteType.CapturePoint;
+        });
+    }
+
+    isCommandableEntity(entityId: number, localOwner: number): boolean {
+        const owner = this.entityOwners.get(entityId);
+        return owner === localOwner && this.isEntityInteractable(entityId);
+    }
+
+    private findEntityAtScreen(
+        worldX: number,
+        worldY: number,
+        predicate?: (entityId: number) => boolean,
+    ): number | null {
         let closest: number | null = null;
         let closestDist = 24;
 
         for (const [id, sprite] of this.sprites) {
+            if (!sprite.visible) continue;
+            if (predicate && !predicate(id)) continue;
+
             const dx = worldX - sprite.x;
             const dy = worldY - sprite.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -144,10 +185,19 @@ export class SpritePool {
         return closest;
     }
 
+    private isEntityInteractable(entityId: number): boolean {
+        const flags = this.entityFlags.get(entityId) ?? 0;
+        const health = this.entityHealth.get(entityId) ?? 100;
+        const animState = (flags >> 2) & 0x03;
+
+        return health > 0 && animState !== AnimState.Death;
+    }
+
     /** Get all entity IDs whose sprites fall within the given world-space rectangle. */
     getEntitiesInRect(minX: number, minY: number, maxX: number, maxY: number): number[] {
         const result: number[] = [];
         for (const [id, sprite] of this.sprites) {
+            if (!sprite.visible) continue;
             if (sprite.x >= minX && sprite.x <= maxX &&
                 sprite.y >= minY && sprite.y <= maxY) {
                 result.push(id);
@@ -160,17 +210,27 @@ export class SpritePool {
         const { x, y } = tileToBattleWorld(entry.x, entry.y);
         sprite.x = x;
         sprite.y = y;
+        sprite.scale.set(entry.scale);
+        sprite.tint = 0xFFFFFF;
+        this.updateOwnerMarker(entry, sprite, x, y);
+
+        if (entry.spriteId === SpriteType.CapturePoint) {
+            sprite.visible = false;
+            this.updateCapturePointMarker(entry.entityId, entry.owner, x, y);
+            return;
+        }
+
+        this.removeObjectiveMarker(entry.entityId);
 
         const animIdx = (entry.flags >> 2) & 0x03;
 
         const tex = this.getFrameTexture(entry.spriteId, animIdx, entry.facing, entry.frame);
         if (tex) {
             sprite.texture = tex;
+            sprite.visible = true;
+        } else {
+            sprite.visible = false;
         }
-
-        sprite.scale.set(entry.scale);
-        sprite.tint = 0xFFFFFF;
-        this.updateOwnerMarker(entry, sprite, x, y);
         // Square battle maps should sort front-to-back by screen/world Y.
         sprite.zIndex = y;
     }
@@ -203,6 +263,48 @@ export class SpritePool {
 
         marker.circle(0, 4, Math.max(3, radiusY - 1));
         marker.fill({ color, alpha: entry.owner === 255 ? 0.55 : 0.9 });
+    }
+
+    private updateCapturePointMarker(entityId: number, owner: number, x: number, y: number): void {
+        let marker = this.objectiveMarkers.get(entityId);
+        if (!marker) {
+            marker = new Graphics();
+            this.container.addChild(marker);
+            this.objectiveMarkers.set(entityId, marker);
+        }
+
+        const color = owner === 255
+            ? 0xC9D2DB
+            : (PLAYER_COLORS[owner] ?? 0xFF8888);
+
+        marker.clear();
+        marker.x = x;
+        marker.y = y - 6;
+        marker.zIndex = y - 0.5;
+
+        marker.circle(0, 0, 12);
+        marker.fill({ color: 0x0B0F16, alpha: 0.84 });
+        marker.stroke({ width: 2, color, alpha: 0.85 });
+
+        marker.moveTo(0, -14);
+        marker.lineTo(14, 0);
+        marker.lineTo(0, 14);
+        marker.lineTo(-14, 0);
+        marker.lineTo(0, -14);
+        marker.fill({ color, alpha: owner === 255 ? 0.14 : 0.24 });
+        marker.stroke({ width: 2, color, alpha: 0.95 });
+
+        marker.circle(0, 0, 4);
+        marker.fill({ color, alpha: 0.95 });
+    }
+
+    private removeObjectiveMarker(entityId: number): void {
+        const marker = this.objectiveMarkers.get(entityId);
+        if (!marker) return;
+
+        this.container.removeChild(marker);
+        marker.destroy();
+        this.objectiveMarkers.delete(entityId);
     }
 
     private getFrameTexture(

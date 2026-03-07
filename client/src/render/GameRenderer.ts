@@ -139,7 +139,9 @@ export class GameRenderer {
         this.input = new InputManager(this.app.canvas, this.camera, this.spritePool, bridge);
 
         // HUD (Preact overlay)
-        this.hud = new HUD(bridge);
+        this.hud = new HUD(bridge, {
+            onDefendSelection: () => this.input.issueDefendOrder(),
+        });
 
         // Start render loop
         this.app.ticker.add(this.onFrame, this);

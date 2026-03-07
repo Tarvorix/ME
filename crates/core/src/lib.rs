@@ -14,6 +14,7 @@ pub mod deployment;
 pub mod campaign;
 pub mod campaign_game;
 pub mod replay;
+pub mod targeting;
 
 pub fn hello() -> &'static str {
     "Machine Empire Core"

@@ -85,6 +85,24 @@ export const HUD_STYLES = {
         font-size: 13px;
     `,
 
+    commandRow: `
+        margin-top: 8px;
+        display: flex;
+    `,
+
+    commandButton: `
+        flex: 1;
+        padding: 6px 10px;
+        background: rgba(38,72,58,0.78);
+        border: 1px solid rgba(82,150,120,0.5);
+        border-radius: 4px;
+        color: #d6ffe9;
+        cursor: pointer;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    `,
+
     buildMenu: `
         position: fixed;
         bottom: 8px;

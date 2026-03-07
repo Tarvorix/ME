@@ -11,6 +11,10 @@ import type { GameBridge } from '../bridge/GameBridge';
 import { readUIState } from '../bridge/types';
 import type { UIState } from '../bridge/types';
 
+interface HUDOptions {
+    onDefendSelection?: () => void;
+}
+
 /**
  * Main HUD orchestrator: renders Preact components into the #hud-root overlay.
  * Updates from the WASM UIStateBuffer each frame.
@@ -24,12 +28,14 @@ export class HUD {
     };
     /** Whether this HUD is for a campaign battle (supports reinforcements). */
     private hasReinforcements: boolean;
+    private onDefendSelection?: () => void;
 
-    constructor(bridge: GameBridge) {
+    constructor(bridge: GameBridge, options?: HUDOptions) {
         this.bridge = bridge;
         this.root = document.getElementById('hud-root')!;
         // Check if bridge supports reinforcements (CampaignBattleAdapter has cmdReinforce)
         this.hasReinforcements = typeof (bridge as any).cmdReinforce === 'function';
+        this.onDefendSelection = options?.onDefendSelection;
     }
 
     /** Call once per frame to update HUD with latest game state. */
@@ -53,7 +59,10 @@ export class HUD {
         render(
             html`
                 <${ResourceBar} state=${this.lastUIState} />
-                <${SelectionPanel} info=${this.selectionInfo} />
+                <${SelectionPanel}
+                    info=${this.selectionInfo}
+                    onDefendSelection=${this.onDefendSelection}
+                />
                 <${BuildMenu}
                     lines=${productionLines}
                     onProduce=${(unitType: number) => this.bridge.cmdProduce(0, unitType)}
