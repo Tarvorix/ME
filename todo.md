@@ -665,3 +665,7 @@ Design doc Section 4.4 "Reinforcements: The Meatgrinder" — should have been im
 - [x] Refresh generated WASM package in `client/src/pkg`
 - [x] Re-run production client build to confirm Pages-ready artifacts compile cleanly
 - [x] Stage current worktree for commit/push on `main`
+
+## Chunk 73: Repo Agent Guide
+- [x] Create root `AGENTS.md` carrying forward the `CLAUDE.md` operating rules
+- [x] Add repo-specific notes for RTS/campaign scoping, WASM rebuilds, verification, and deployment
