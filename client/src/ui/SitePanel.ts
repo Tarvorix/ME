@@ -1,10 +1,10 @@
 import { html } from 'htm/preact';
 import { CAMPAIGN_STYLES, strainColor } from './styles';
 import { HUD_STYLES } from './styles';
-import type { CampaignSiteData, ActiveBattleData, CampaignEconomyData } from '../bridge/CampaignTypes';
+import type { CampaignSiteData, ActiveBattleData, CampaignEconomyData, CampaignProductionData } from '../bridge/CampaignTypes';
 import {
     SiteType, SITE_TYPE_NAMES, NEUTRAL_OWNER, BattleStatus,
-    CampaignUnitType, CAMPAIGN_UNIT_NAMES, CAMPAIGN_UNIT_COSTS,
+    CampaignUnitType, CAMPAIGN_UNIT_NAMES, CAMPAIGN_UNIT_COSTS, CAMPAIGN_UNIT_BUILD_TIMES,
 } from '../bridge/CampaignTypes';
 import { PLAYER_COLORS } from '../config';
 
@@ -13,6 +13,7 @@ export interface SitePanelProps {
     playerNodeId: number;
     battles: ActiveBattleData[];
     economy: CampaignEconomyData;
+    production: CampaignProductionData;
     onDispatchFrom: (siteId: number) => void;
     onWithdraw: (siteId: number) => void;
     onViewBattle: (siteId: number) => void;
@@ -49,7 +50,7 @@ const PRODUCIBLE_UNITS = [
  * When viewing the player's node, also shows production buttons.
  * Renders as content within the left panel grid zone (no position:fixed).
  */
-export function SitePanel({ site, playerNodeId, battles, economy, onDispatchFrom, onWithdraw, onViewBattle, onProduce, onOpenResearch }: SitePanelProps) {
+export function SitePanel({ site, playerNodeId, battles, economy, production, onDispatchFrom, onWithdraw, onViewBattle, onProduce, onOpenResearch }: SitePanelProps) {
     if (!site) {
         return html`
             <div style=${CAMPAIGN_STYLES.leftPanelPlaceholder}>
@@ -78,6 +79,20 @@ export function SitePanel({ site, playerNodeId, battles, economy, onDispatchFrom
 
     // Is this the player's node?
     const isPlayerNode = site.siteId === playerNodeId;
+    const hasActiveBuild = production.activeUnitType !== 255;
+    const activeBuildName = hasActiveBuild
+        ? CAMPAIGN_UNIT_NAMES[production.activeUnitType as CampaignUnitType]
+        : 'Idle';
+    const activeBuildPct = production.activeTotalTime > 0
+        ? Math.min(100, (production.activeProgress / production.activeTotalTime) * 100)
+        : 0;
+    const activeBuildRemaining = production.activeTotalTime > 0
+        ? Math.max(0, production.activeTotalTime - production.activeProgress)
+        : 0;
+    const queuedParts: string[] = [];
+    if (production.queuedThralls > 0) queuedParts.push(`${production.queuedThralls}T`);
+    if (production.queuedSentinels > 0) queuedParts.push(`${production.queuedSentinels}S`);
+    if (production.queuedTanks > 0) queuedParts.push(`${production.queuedTanks}H`);
 
     return html`
         <div>
@@ -188,6 +203,35 @@ export function SitePanel({ site, playerNodeId, battles, economy, onDispatchFrom
                     <span style=${'font-size: 10px; color: ' + strainColor(economy.strain)}>${Math.round(economy.strain)}%</span>
                 </div>
 
+                <!-- Active Build -->
+                <div style="margin-bottom: 8px">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px">
+                        <span style="font-size: 11px; color: #888">Active Build</span>
+                        <span style=${'font-size: 11px; color: ' + (hasActiveBuild ? '#88bbff' : '#777')}>
+                            ${activeBuildName}
+                        </span>
+                    </div>
+                    ${hasActiveBuild ? html`
+                        <div style=${HUD_STYLES.progressBar}>
+                            <div style=${HUD_STYLES.progressFill + '; width: ' + activeBuildPct + '%'}></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 3px; font-size: 10px; color: #777">
+                            <span>${Math.floor(activeBuildPct)}%</span>
+                            <span>${activeBuildRemaining.toFixed(1)}s remaining</span>
+                        </div>
+                    ` : html`
+                        <div style="font-size: 10px; color: #666">No unit in production</div>
+                    `}
+                </div>
+
+                <!-- Queue Summary -->
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px">
+                    <span style="font-size: 11px; color: #888">Queued</span>
+                    <span style="font-size: 11px; color: #aaa">
+                        ${production.queuedCount > 0 ? `${production.queuedCount} (${queuedParts.join(' ')})` : '0'}
+                    </span>
+                </div>
+
                 <!-- Produce Buttons -->
                 ${PRODUCIBLE_UNITS.map((unit) => {
                     const canAfford = economy.energyBank >= unit.cost;
@@ -203,7 +247,7 @@ export function SitePanel({ site, playerNodeId, battles, economy, onDispatchFrom
                         >
                             <div>
                                 <span style=${'color: ' + unit.color}>${unit.name}</span>
-                                <div style="font-size: 10px; color: #666">${unit.desc}</div>
+                                <div style="font-size: 10px; color: #666">${unit.desc} • ${CAMPAIGN_UNIT_BUILD_TIMES[unit.type]}s</div>
                             </div>
                             <span style=${HUD_STYLES.buildCost}>${unit.cost}E</span>
                         </div>

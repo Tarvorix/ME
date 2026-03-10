@@ -1,5 +1,10 @@
 use crate::campaign::map::{CampaignMap, GarrisonedUnit};
 use crate::campaign::economy::{CampaignEconomy, campaign_resource_tick};
+use crate::campaign::production::{
+    CampaignProductions,
+    CAMPAIGN_THRALL_STRAIN_AMOUNT,
+    campaign_production_tick,
+};
 use crate::campaign::research::PlayerResearch;
 use crate::campaign::dispatch::DispatchQueue;
 use crate::campaign::bridge::{BattleRequest, BattleResult, create_battle_from_campaign, extract_battle_result, apply_battle_result, battle_local_slots};
@@ -8,9 +13,11 @@ use crate::ai::campaign_ai::{CampaignAiState, campaign_ai_tick};
 use crate::game::Game;
 use crate::systems::reinforcement::{PendingReinforcements, ReinforcementAvailability, ReinforcementRequest};
 use crate::types::SpriteId;
-use crate::blueprints::get_blueprint;
 use crate::components::Health;
 use crate::deployment::DeploymentState;
+use crate::protocol::EventSnapshot;
+use crate::state_snapshot::snapshot_events;
+use crate::types::EventType;
 
 /// Represents an active battle on the campaign map.
 pub struct ActiveBattle {
@@ -28,6 +35,8 @@ pub struct CampaignGame {
     pub economies: Vec<CampaignEconomy>,
     /// Per-player research states.
     pub research: Vec<PlayerResearch>,
+    /// Per-player production queues.
+    pub productions: CampaignProductions,
     /// Force dispatch queue.
     pub dispatch_queue: DispatchQueue,
     /// Active battles.
@@ -49,11 +58,13 @@ impl CampaignGame {
         let map = CampaignMap::generate(player_count, seed);
         let economies: Vec<_> = (0..player_count).map(|_| CampaignEconomy::new()).collect();
         let research: Vec<_> = (0..player_count).map(|_| PlayerResearch::new()).collect();
+        let productions = CampaignProductions::new(player_count);
 
         CampaignGame {
             campaign_map: map,
             economies,
             research,
+            productions,
             dispatch_queue: DispatchQueue::new(),
             active_battles: Vec::new(),
             ai_states: Vec::new(),
@@ -85,6 +96,14 @@ impl CampaignGame {
             pr.research_tick(delta_secs);
         }
 
+        // Advance queued node production.
+        campaign_production_tick(
+            &mut self.economies,
+            &mut self.productions,
+            &mut self.campaign_map,
+            delta_secs,
+        );
+
         // Advance dispatch orders
         let completed_dispatches = self.dispatch_queue.tick(delta_secs);
         for order in &completed_dispatches {
@@ -103,8 +122,10 @@ impl CampaignGame {
 
         // Tick active battles
         let mut resolved_battles = Vec::new();
+        let mut strain_relief: Vec<(u8, f32)> = Vec::new();
         for battle in &mut self.active_battles {
             battle.game.tick(50.0);
+            collect_thrall_strain_relief(battle, &mut strain_relief);
 
             if let Some(bs) = battle.game.world.get_resource::<crate::systems::battle_victory::BattleState>() {
                 if bs.is_finished() {
@@ -112,6 +133,12 @@ impl CampaignGame {
                         resolved_battles.push(result);
                     }
                 }
+            }
+        }
+
+        for (player, relief) in strain_relief {
+            if let Some(econ) = self.economies.get_mut(player as usize) {
+                econ.reduce_conscription_strain(relief);
             }
         }
 
@@ -130,6 +157,7 @@ impl CampaignGame {
             &mut self.ai_states,
             &mut self.campaign_map,
             &mut self.economies,
+            &mut self.productions,
             &mut self.research,
             &mut self.dispatch_queue,
         );
@@ -280,15 +308,6 @@ impl CampaignGame {
             None => return false, // Not enough units
         };
 
-        // Add Conscription Strain for Thralls
-        let bp = get_blueprint(sprite_id);
-        if bp.is_conscript {
-            let strain_per_unit = 8.0; // Same as production strain
-            if let Some(econ) = self.economies.get_mut(player as usize) {
-                econ.add_conscription_strain(strain_per_unit * count as f32);
-            }
-        }
-
         // Queue the reinforcement in the battle
         let battle = self.active_battles.get_mut(battle_index).unwrap();
         if let Some(pr) = battle.game.world.get_resource_mut::<PendingReinforcements>() {
@@ -424,6 +443,35 @@ impl CampaignGame {
         }
         eliminated
     }
+}
+
+fn collect_thrall_strain_relief(battle: &ActiveBattle, relief: &mut Vec<(u8, f32)>) {
+    for event in snapshot_events(&battle.game.world) {
+        if !is_thrall_death_event(&event) {
+            continue;
+        }
+
+        let owner = event.payload[2];
+        let (local_attacker, local_defender) = battle_local_slots(battle.attacker, battle.defender);
+        let campaign_player = if owner == local_attacker {
+            battle.attacker
+        } else if owner == local_defender {
+            battle.defender
+        } else {
+            continue;
+        };
+
+        relief.push((campaign_player, CAMPAIGN_THRALL_STRAIN_AMOUNT));
+    }
+}
+
+fn is_thrall_death_event(event: &EventSnapshot) -> bool {
+    if event.event_type != EventType::Death as u16 {
+        return false;
+    }
+
+    let sprite_id = u16::from_le_bytes([event.payload[0], event.payload[1]]);
+    sprite_id == SpriteId::Thrall as u16
 }
 
 #[cfg(test)]
@@ -595,6 +643,57 @@ mod tests {
         let thralls_after = game.active_battles[0].game.get_player_combat_unit_ids(0).len();
         assert!(thralls_after > thralls_before,
             "Should have more units after reinforcement, before={} after={}", thralls_before, thralls_after);
+    }
+
+    #[test]
+    fn test_reinforcement_does_not_add_duplicate_strain() {
+        let mut game = CampaignGame::new(2, 42);
+
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 3));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 5)]);
+        game.tick();
+
+        game.economies[0].strain = 18.0;
+        let result = game.request_reinforcement(0, 0, 0, 2);
+        assert!(result, "Reinforcement request should succeed");
+        assert_eq!(game.economies[0].strain, 18.0, "Moving existing thralls should not add strain again");
+    }
+
+    #[test]
+    fn test_thrall_death_lowers_campaign_strain() {
+        let mut game = CampaignGame::new(2, 42);
+
+        let mine_id = game.campaign_map.sites.iter()
+            .find(|s| s.site_type == crate::campaign::map::SiteType::MiningStation)
+            .unwrap().id;
+        game.campaign_map.get_site_mut(mine_id).unwrap().owner = 1;
+        game.campaign_map.get_site_mut(mine_id).unwrap().garrison.push(GarrisonedUnit::new(0, 1));
+
+        game.trigger_battle(mine_id, 0, vec![GarrisonedUnit::new(0, 2)]);
+        game.economies[0].strain = 30.0;
+
+        let attacker_thrall = {
+            let ut_storage = game.active_battles[0].game.world.get_storage::<crate::components::UnitType>().unwrap();
+            ut_storage.iter()
+                .find(|(_, ut)| ut.owner == 0 && ut.kind == SpriteId::Thrall)
+                .map(|(entity, _)| entity)
+                .unwrap()
+        };
+        if let Some(health) = game.active_battles[0].game.world.get_component_mut::<Health>(attacker_thrall) {
+            health.current = 0.0;
+        }
+
+        game.tick();
+
+        assert!(
+            game.economies[0].strain < 30.0,
+            "A dead Thrall should immediately relieve campaign strain",
+        );
     }
 
     #[test]

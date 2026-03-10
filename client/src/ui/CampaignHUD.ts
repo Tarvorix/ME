@@ -12,7 +12,7 @@ import { VictoryScreen } from './VictoryScreen';
 import type { MatchStats } from './VictoryScreen';
 import type { CampaignBridge } from '../bridge/CampaignBridge';
 import type { CampaignRenderer } from '../render/CampaignRenderer';
-import type { CampaignSiteData, ActiveBattleData, CampaignEconomyData, CampaignResearchData } from '../bridge/CampaignTypes';
+import type { CampaignSiteData, ActiveBattleData, CampaignEconomyData, CampaignProductionData, CampaignResearchData } from '../bridge/CampaignTypes';
 import { CampaignUnitType, SITE_TYPE_NAMES, SiteType, TECH_NAMES, TechId, NO_TECH, NEUTRAL_OWNER } from '../bridge/CampaignTypes';
 
 /** Data for the battle notification banner. */
@@ -79,6 +79,7 @@ export class CampaignHUD {
     update(): void {
         // Read current state from bridge
         const economy = this.bridge.getEconomy(0);
+        const production = this.bridge.getProduction(0);
         const research = this.bridge.getResearch(0);
         const sites = this.bridge.getSites();
         const battles = this.bridge.getActiveBattles();
@@ -116,6 +117,7 @@ export class CampaignHUD {
                     <div style=${isMobile ? CAMPAIGN_STYLES.topBarMobile : CAMPAIGN_STYLES.topBar}>
                         <${CampaignResourceBar}
                             economy=${economy}
+                            production=${production}
                             paused=${paused}
                             tickCount=${tickCount}
                             onTogglePause=${this.handleTogglePause}
@@ -140,6 +142,7 @@ export class CampaignHUD {
                                 playerNodeId=${nodeId}
                                 battles=${battles}
                                 economy=${economy}
+                                production=${production}
                                 onDispatchFrom=${this.handleDispatchFrom}
                                 onWithdraw=${this.handleWithdraw}
                                 onViewBattle=${this.handleViewBattle}
@@ -348,7 +351,7 @@ export class CampaignHUD {
         const success = this.bridge.cmdProduce(0, unitType, 1);
         if (success) {
             const names = ['Thrall', 'Sentinel', 'Hover Tank'];
-            this.addAlert(`${names[unitType] ?? 'Unit'} produced`, 'info');
+            this.addAlert(`${names[unitType] ?? 'Unit'} queued`, 'info');
         }
     };
 

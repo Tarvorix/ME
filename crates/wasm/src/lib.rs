@@ -5,11 +5,10 @@ use machine_empire_core::systems::resource::UIStateBuffer;
 use machine_empire_core::command::Command;
 use machine_empire_core::campaign_game::CampaignGame;
 use machine_empire_core::campaign::map::{SiteType, GarrisonedUnit};
+use machine_empire_core::campaign::production::queue_campaign_production;
 use machine_empire_core::campaign::research::TechId;
 use machine_empire_core::ai::campaign_ai::CampaignAiDifficulty;
 use machine_empire_core::systems::battle_victory::BattleState;
-use machine_empire_core::blueprints;
-use machine_empire_core::types::SpriteId;
 use std::cell::UnsafeCell;
 
 /// Single-threaded global game state. Safe because WASM is single-threaded.
@@ -253,6 +252,7 @@ const MAX_SITES: usize = 32;
 const SITE_ENTRY_BYTES: usize = 32;
 const MAX_CAMPAIGN_PLAYERS: usize = 4;
 const ECONOMY_ENTRY_BYTES: usize = 40;
+const PRODUCTION_ENTRY_BYTES: usize = 28;
 const RESEARCH_ENTRY_BYTES: usize = 22;
 const MAX_DISPATCH_ORDERS: usize = 32;
 const DISPATCH_ENTRY_BYTES: usize = 28;
@@ -283,6 +283,7 @@ impl<const N: usize> Buf<N> {
 // Campaign buffers (UnsafeCell-wrapped, safe because WASM is single-threaded)
 static SITE_BUF: Buf<{ MAX_SITES * SITE_ENTRY_BYTES }> = Buf::new();
 static ECONOMY_BUF: Buf<ECONOMY_ENTRY_BYTES> = Buf::new();
+static PRODUCTION_BUF: Buf<PRODUCTION_ENTRY_BYTES> = Buf::new();
 static RESEARCH_BUF: Buf<RESEARCH_ENTRY_BYTES> = Buf::new();
 static DISPATCH_BUF: Buf<{ MAX_DISPATCH_ORDERS * DISPATCH_ENTRY_BYTES }> = Buf::new();
 static BATTLE_BUF: Buf<{ MAX_ACTIVE_BATTLES * BATTLE_ENTRY_BYTES }> = Buf::new();
@@ -526,6 +527,49 @@ pub fn campaign_get_economy_ptr(player: u32) -> *const u8 {
 #[wasm_bindgen]
 pub fn campaign_get_economy_len() -> u32 {
     ECONOMY_ENTRY_BYTES as u32
+}
+
+// ── Production Queries ───────────────────────────────────────────────────
+
+/// Write campaign production state for a player into the production buffer and return pointer.
+/// Buffer format (28 bytes):
+///   [0]      active_unit_type  : u8 (255 = idle)
+///   [1..4]   active_progress   : f32
+///   [5..8]   active_total_time : f32
+///   [9..12]  queued_count      : u32
+///   [13..16] queued_thralls    : u32
+///   [17..20] queued_sentinels  : u32
+///   [21..24] queued_tanks      : u32
+///   [25..27] reserved
+#[wasm_bindgen]
+pub fn campaign_get_production_ptr(player: u32) -> *const u8 {
+    let cg = campaign();
+    let pid = player as usize;
+    let buf = PRODUCTION_BUF.get_mut();
+    buf.fill(0);
+    buf[0] = 255;
+
+    if let Some(queue) = cg.productions.0.get(pid) {
+        if let Some(job) = &queue.active_job {
+            buf[0] = job.unit_type as u8;
+            write_f32(buf, 1, job.progress);
+            write_f32(buf, 5, job.total_time);
+        }
+
+        let (queued_thralls, queued_sentinels, queued_tanks) = queue.queued_counts_by_type();
+        write_u32(buf, 9, queue.queued_count());
+        write_u32(buf, 13, queued_thralls);
+        write_u32(buf, 17, queued_sentinels);
+        write_u32(buf, 21, queued_tanks);
+    }
+
+    PRODUCTION_BUF.as_ptr()
+}
+
+/// Get the byte length of the campaign production buffer (28 bytes).
+#[wasm_bindgen]
+pub fn campaign_get_production_len() -> u32 {
+    PRODUCTION_ENTRY_BYTES as u32
 }
 
 // ── Research Queries ─────────────────────────────────────────────────────
@@ -935,56 +979,21 @@ pub fn campaign_cmd_research(player: u32, tech_id: u32) -> u32 {
 }
 
 /// Produce units at the player's node.
-/// Deducts energy cost and adds units to node garrison instantly.
+/// Deducts energy immediately and queues units one-at-a-time at the node.
 /// unit_type: 0=Thrall, 1=Sentinel, 2=HoverTank.
 /// Returns 1 on success, 0 on failure.
 #[wasm_bindgen]
 pub fn campaign_cmd_produce(player: u32, unit_type: u32, count: u32) -> u32 {
-    if count == 0 {
-        return 0;
-    }
-
-    let kind = match SpriteId::from_u16(unit_type as u16) {
-        Some(k) => k,
-        None => return 0,
-    };
-
-    // Only producible units
-    match kind {
-        SpriteId::Thrall | SpriteId::Sentinel | SpriteId::HoverTank => {}
-        _ => return 0,
-    }
-
     let cg = campaign_mut();
-    let pid = player as usize;
-
-    if pid >= cg.economies.len() {
-        return 0;
-    }
-
-    let bp = blueprints::get_blueprint(kind);
-    let total_cost = bp.energy_cost as f32 * count as f32;
-
-    if cg.economies[pid].energy_bank < total_cost {
-        return 0;
-    }
-
-    if let Some(node) = cg.campaign_map.get_node_mut(player as u8) {
-        cg.economies[pid].energy_bank -= total_cost;
-
-        // Thrall production increases conscription strain
-        if bp.is_conscript {
-            cg.economies[pid].strain = (cg.economies[pid].strain + 2.0 * count as f32).min(100.0);
-        }
-
-        machine_empire_core::campaign::garrison::add_to_garrison(
-            &mut node.garrison,
-            GarrisonedUnit::new(unit_type as u16, count),
-        );
-        1
-    } else {
-        0
-    }
+    let node_exists = cg.campaign_map.get_node(player as u8).is_some();
+    if queue_campaign_production(
+        &mut cg.economies,
+        &mut cg.productions,
+        player as u8,
+        unit_type as u16,
+        count,
+        node_exists,
+    ) { 1 } else { 0 }
 }
 
 /// Withdraw all garrison from a site, dispatching them back to the player's node.

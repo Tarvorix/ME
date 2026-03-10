@@ -1,6 +1,9 @@
 use serde::{Serialize, Deserialize};
 use super::map::CampaignMap;
 
+/// Base campaign strain decay rate (strain units per second at 0 strain).
+const CAMPAIGN_BASE_STRAIN_DECAY: f32 = 1.0;
+
 /// Campaign-level economy for a single player.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CampaignEconomy {
@@ -56,6 +59,31 @@ impl CampaignEconomy {
     /// Add conscription strain (capped at 100).
     pub fn add_conscription_strain(&mut self, amount: f32) {
         self.strain = (self.strain + amount).min(100.0);
+    }
+
+    /// Reduce conscription strain, clamping at zero.
+    pub fn reduce_conscription_strain(&mut self, amount: f32) {
+        self.strain = (self.strain - amount).max(0.0);
+    }
+
+    /// Compute the strain-based production speed penalty multiplier (0.0 = no penalty).
+    pub fn strain_production_penalty(&self) -> f32 {
+        let s = self.strain;
+        if s <= 30.0 {
+            0.0
+        } else if s <= 50.0 {
+            let t = (s - 30.0) / 20.0;
+            t * 0.10
+        } else if s <= 70.0 {
+            let t = (s - 50.0) / 20.0;
+            0.10 + t * 0.15
+        } else if s <= 90.0 {
+            let t = (s - 70.0) / 20.0;
+            0.25 + t * 0.25
+        } else {
+            let t = (s - 90.0) / 10.0;
+            (0.50 + t * 0.40).min(0.90)
+        }
     }
 }
 
@@ -131,6 +159,12 @@ pub fn campaign_resource_tick(economies: &mut [CampaignEconomy], map: &CampaignM
         econ.energy_bank += net * delta_secs;
         if econ.energy_bank < 0.0 {
             econ.energy_bank = 0.0;
+        }
+
+        if econ.strain > 0.0 {
+            let factor = 1.0 - econ.strain / 100.0;
+            let recovery = CAMPAIGN_BASE_STRAIN_DECAY * factor * factor;
+            econ.reduce_conscription_strain(recovery * delta_secs);
         }
     }
 }
@@ -221,6 +255,32 @@ mod tests {
         assert!(compute_strain_penalty(60.0) > compute_strain_penalty(40.0));
         assert!(compute_strain_penalty(80.0) > compute_strain_penalty(60.0));
         assert!(compute_strain_penalty(95.0) >= 0.50);
+    }
+
+    #[test]
+    fn test_strain_production_penalty() {
+        let mut econ = CampaignEconomy::new();
+        assert_eq!(econ.strain_production_penalty(), 0.0);
+
+        econ.strain = 50.0;
+        assert!((econ.strain_production_penalty() - 0.10).abs() < 0.001);
+
+        econ.strain = 70.0;
+        assert!((econ.strain_production_penalty() - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_campaign_strain_decays() {
+        let map = CampaignMap::generate(2, 42);
+        let mut economies = vec![CampaignEconomy::new(), CampaignEconomy::new()];
+        economies[0].strain = 50.0;
+
+        campaign_resource_tick(&mut economies, &map, 1.0);
+
+        assert!(
+            (economies[0].strain - 49.75).abs() < 0.001,
+            "Campaign strain should decay using the squared recovery curve",
+        );
     }
 
     #[test]

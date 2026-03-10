@@ -13,6 +13,7 @@ import {
     campaign_get_site_count, campaign_get_site_data_ptr, campaign_get_site_data_len,
     campaign_get_map_width, campaign_get_map_height, campaign_get_player_node,
     campaign_get_economy_ptr, campaign_get_economy_len,
+    campaign_get_production_ptr, campaign_get_production_len,
     campaign_get_research_ptr, campaign_get_research_len,
     campaign_get_available_techs_ptr, campaign_get_available_techs_count,
     campaign_get_dispatch_orders_ptr, campaign_get_dispatch_orders_count,
@@ -32,7 +33,7 @@ import {
 import { RENDER_ENTRY_SIZE } from '../config';
 
 import type {
-    CampaignSiteData, CampaignEconomyData, CampaignResearchData,
+    CampaignSiteData, CampaignEconomyData, CampaignProductionData, CampaignResearchData,
     DispatchOrderData, ActiveBattleData,
 } from './CampaignTypes';
 
@@ -166,6 +167,35 @@ export class CampaignBridge {
             strain: view.getFloat32(28, true),
             garrisonUpkeep: view.getFloat32(32, true),
             deployedUpkeep: view.getFloat32(36, true),
+        };
+    }
+
+    /** Read campaign production queue state for a player. */
+    getProduction(player: number): CampaignProductionData {
+        const ptr = campaign_get_production_ptr(player);
+        const len = campaign_get_production_len();
+
+        if (ptr === 0 || len === 0) {
+            return {
+                activeUnitType: 255,
+                activeProgress: 0,
+                activeTotalTime: 0,
+                queuedCount: 0,
+                queuedThralls: 0,
+                queuedSentinels: 0,
+                queuedTanks: 0,
+            };
+        }
+
+        const view = new DataView(this.memory.buffer, ptr, len);
+        return {
+            activeUnitType: view.getUint8(0),
+            activeProgress: view.getFloat32(1, true),
+            activeTotalTime: view.getFloat32(5, true),
+            queuedCount: view.getUint32(9, true),
+            queuedThralls: view.getUint32(13, true),
+            queuedSentinels: view.getUint32(17, true),
+            queuedTanks: view.getUint32(21, true),
         };
     }
 

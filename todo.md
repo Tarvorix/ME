@@ -218,6 +218,14 @@
 - [x] ai_strategic_system (MCTS every N ticks, translate to Commands)
 - [x] add_ai_player() in game.rs, register ai_strategic_system in system runner
 - [x] Integrate with match_runner.rs (auto-register AI players on match start)
+
+## Chunk 26: Campaign Production Queue + Thrall Strain Recovery
+- [x] Evaluate current campaign production path and strain accumulation bugs
+- [x] Replace instant campaign production with a one-at-a-time queued production flow
+- [x] Surface campaign production queue/progress in the client HUD
+- [x] Add campaign strain recovery over time and lower strain when thralls die
+- [x] Remove duplicate strain gain when moving existing thralls in as reinforcements
+- [x] Verify with Rust tests, wasm rebuild, and client build
 - [x] Unit tests for AI player (production, combat, full match) (155 core + 27 server = 182 tests passing)
 
 ## Chunk 26: MCP Server

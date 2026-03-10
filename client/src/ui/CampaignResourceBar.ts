@@ -1,10 +1,12 @@
 import { html } from 'htm/preact';
 import { CAMPAIGN_STYLES, strainColor } from './styles';
 import { HUD_STYLES } from './styles';
-import type { CampaignEconomyData } from '../bridge/CampaignTypes';
+import type { CampaignEconomyData, CampaignProductionData } from '../bridge/CampaignTypes';
+import { CampaignUnitType, CAMPAIGN_UNIT_NAMES } from '../bridge/CampaignTypes';
 
 export interface CampaignResourceBarProps {
     economy: CampaignEconomyData;
+    production: CampaignProductionData;
     paused: boolean;
     tickCount: number;
     onTogglePause: () => void;
@@ -17,12 +19,19 @@ export interface CampaignResourceBarProps {
  * expenses, net rate, strain meter, research/production buttons, and pause control.
  * Renders as content within the top bar grid zone (no position:fixed).
  */
-export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause, onOpenResearch, onSelectNode }: CampaignResourceBarProps) {
+export function CampaignResourceBar({ economy, production, paused, tickCount, onTogglePause, onOpenResearch, onSelectNode }: CampaignResourceBarProps) {
     const net = economy.netRate;
     const netStr = net >= 0 ? `+${net.toFixed(1)}` : net.toFixed(1);
     const netColor = net >= 0 ? '#44cc44' : '#cc4444';
     const sc = strainColor(economy.strain);
     const strainPct = Math.min(100, Math.max(0, economy.strain));
+    const hasActiveBuild = production.activeUnitType !== 255;
+    const activeUnitName = hasActiveBuild
+        ? CAMPAIGN_UNIT_NAMES[production.activeUnitType as CampaignUnitType]
+        : 'Idle';
+    const activeBuildPct = production.activeTotalTime > 0
+        ? Math.min(100, Math.floor((production.activeProgress / production.activeTotalTime) * 100))
+        : 0;
 
     // Format tick count as time display (MM:SS)
     const totalSecs = Math.floor(tickCount * 0.05); // 50ms per tick
@@ -59,6 +68,15 @@ export function CampaignResourceBar({ economy, paused, tickCount, onTogglePause,
         <div style=${CAMPAIGN_STYLES.resourceGroup}>
             <span style=${HUD_STYLES.resourceLabel}>Net</span>
             <span style=${'font-weight: 600; font-size: 12px; color: ' + netColor}>${netStr}/s</span>
+        </div>
+
+        <!-- Active Build -->
+        <div style=${CAMPAIGN_STYLES.resourceGroup}>
+            <span style=${HUD_STYLES.resourceLabel}>Build</span>
+            <span style=${'font-size: 11px; color: ' + (hasActiveBuild ? '#88bbff' : '#888')}>${activeUnitName}</span>
+            <span style="font-size: 10px; color: #666">
+                ${hasActiveBuild ? `${activeBuildPct}%` : production.queuedCount > 0 ? `${production.queuedCount} queued` : 'ready'}
+            </span>
         </div>
 
         <!-- Strain Meter -->

@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::campaign::map::{CampaignMap, SiteType, GarrisonedUnit};
 use crate::campaign::economy::CampaignEconomy;
+use crate::campaign::production::{CampaignProductions, queue_campaign_production};
 use crate::campaign::research::{PlayerResearch, TechId};
 use crate::campaign::dispatch::DispatchQueue;
 
@@ -245,6 +246,7 @@ pub fn campaign_ai_tick(
     ai_states: &mut [CampaignAiState],
     map: &mut CampaignMap,
     economies: &mut [CampaignEconomy],
+    productions: &mut CampaignProductions,
     research_states: &mut [PlayerResearch],
     dispatch_queue: &mut DispatchQueue,
 ) {
@@ -279,20 +281,15 @@ pub fn campaign_ai_tick(
                     }
                 }
                 CampaignAction::ProduceUnits { unit_type, count } => {
-                    // Add units to node garrison (simplified production for campaign level)
-                    if let Some(node) = map.get_node_mut(ai.player_id) {
-                        let bp = crate::blueprints::get_blueprint(
-                            crate::types::SpriteId::from_u16(unit_type).unwrap_or(crate::types::SpriteId::Thrall)
-                        );
-                        let total_cost = bp.energy_cost as f32 * count as f32;
-                        if economies[pid].energy_bank >= total_cost {
-                            economies[pid].energy_bank -= total_cost;
-                            crate::campaign::garrison::add_to_garrison(
-                                &mut node.garrison,
-                                GarrisonedUnit::new(unit_type, count),
-                            );
-                        }
-                    }
+                    let node_exists = map.get_node(ai.player_id).is_some();
+                    let _ = queue_campaign_production(
+                        economies,
+                        productions,
+                        ai.player_id,
+                        unit_type,
+                        count,
+                        node_exists,
+                    );
                 }
             }
         }
@@ -304,19 +301,21 @@ mod tests {
     use super::*;
     use crate::campaign::map::CampaignMap;
     use crate::campaign::economy::CampaignEconomy;
+    use crate::campaign::production::CampaignProductions;
     use crate::campaign::research::PlayerResearch;
     use crate::campaign::dispatch::DispatchQueue;
 
-    fn test_setup() -> (CampaignMap, Vec<CampaignEconomy>, Vec<PlayerResearch>) {
+    fn test_setup() -> (CampaignMap, Vec<CampaignEconomy>, CampaignProductions, Vec<PlayerResearch>) {
         let map = CampaignMap::generate(2, 42);
         let economies = vec![CampaignEconomy::new(), CampaignEconomy::new()];
+        let productions = CampaignProductions::new(2);
         let research = vec![PlayerResearch::new(), PlayerResearch::new()];
-        (map, economies, research)
+        (map, economies, productions, research)
     }
 
     #[test]
     fn test_ai_claims_neutral_mines() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
         let mut ai_states = vec![
             CampaignAiState::new(0, CampaignAiDifficulty::Normal),
@@ -326,7 +325,7 @@ mod tests {
 
         let node_garrison_before = map.get_node(0).unwrap().garrison_count();
 
-        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
+        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
 
         // Should have dispatched units
         assert!(!dispatch.orders.is_empty() || node_garrison_before == 0,
@@ -335,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_ai_researches_with_relic() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
 
         // Give player 0 a relic and claim all neutral mines (so expand isn't priority)
@@ -355,7 +354,7 @@ mod tests {
         ];
         ai_states[0].ticks_since_eval = 99;
 
-        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
+        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
 
         // Should have started research
         assert!(research[0].active_job.is_some(), "AI should research when it has relics");
@@ -363,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_ai_produces_units() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
 
         // Claim all neutral mines so expand isn't priority
@@ -382,17 +381,17 @@ mod tests {
         ];
         ai_states[0].ticks_since_eval = 99;
 
-        let garrison_before = map.get_node(0).unwrap().garrison_count();
+        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
 
-        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
-
-        let garrison_after = map.get_node(0).unwrap().garrison_count();
-        assert!(garrison_after > garrison_before, "AI should produce units when garrison is low");
+        assert!(
+            productions.0[0].active_job.is_some() || productions.0[0].queued_count() > 0,
+            "AI should queue production when garrison is low",
+        );
     }
 
     #[test]
     fn test_ai_attacks_weak_enemy_sites() {
-        let (mut map, economies, research) = test_setup();
+        let (mut map, economies, _productions, research) = test_setup();
 
         // Claim all neutral sites for player 0 (no neutral mines left)
         for site in &mut map.sites {
@@ -413,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_ai_defends_threatened_sites() {
-        let (mut map, economies, research) = test_setup();
+        let (mut map, economies, _productions, research) = test_setup();
 
         // Give enemy more sites than player 0
         for site in &mut map.sites {
@@ -432,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_ai_manages_economy() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
 
         // Claim neutral mines
@@ -452,7 +451,7 @@ mod tests {
         ];
         ai_states[0].ticks_since_eval = 99;
 
-        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
+        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
 
         // AI should have spent energy (on production or research)
         assert!(economies[0].energy_bank <= bank_before, "AI should spend energy on actions");
@@ -460,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_ai_vs_ai_campaign() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
 
         let mut ai_states = vec![
@@ -470,7 +469,7 @@ mod tests {
 
         // Run 500 AI ticks
         for _ in 0..500 {
-            campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
+            campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
 
             // Tick dispatch orders
             let completed = dispatch.tick(0.25); // 5 seconds per tick at 20Hz
@@ -489,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_eval_interval_respected() {
-        let (mut map, mut economies, mut research) = test_setup();
+        let (mut map, mut economies, mut productions, mut research) = test_setup();
         let mut dispatch = DispatchQueue::new();
 
         let mut ai_states = vec![
@@ -497,7 +496,7 @@ mod tests {
         ];
 
         // First tick - shouldn't evaluate (ticks_since_eval starts at 0)
-        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut research, &mut dispatch);
+        campaign_ai_tick(&mut ai_states, &mut map, &mut economies, &mut productions, &mut research, &mut dispatch);
         assert_eq!(ai_states[0].ticks_since_eval, 1, "Counter should increment");
         assert!(dispatch.orders.is_empty(), "Should not act on first tick");
     }

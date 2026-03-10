@@ -46,6 +46,16 @@ export interface CampaignEconomyData {
     deployedUpkeep: number;
 }
 
+export interface CampaignProductionData {
+    activeUnitType: number;     // 255 = idle
+    activeProgress: number;
+    activeTotalTime: number;
+    queuedCount: number;
+    queuedThralls: number;
+    queuedSentinels: number;
+    queuedTanks: number;
+}
+
 // ── Research ─────────────────────────────────────────────────────────────
 
 export enum TechId {
@@ -190,9 +200,9 @@ export const CAMPAIGN_UNIT_COSTS: Record<CampaignUnitType, number> = {
 };
 
 export const CAMPAIGN_UNIT_BUILD_TIMES: Record<CampaignUnitType, number> = {
-    [CampaignUnitType.Thrall]: 5,
-    [CampaignUnitType.Sentinel]: 15,
-    [CampaignUnitType.HoverTank]: 30,
+    [CampaignUnitType.Thrall]: 15,
+    [CampaignUnitType.Sentinel]: 45,
+    [CampaignUnitType.HoverTank]: 90,
 };
 
 // ── AI Difficulty ────────────────────────────────────────────────────────
